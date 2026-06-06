@@ -60,6 +60,41 @@ a:hover {
   padding: 20px;
 }
 
+.mode-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  padding: 16px 18px;
+}
+
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-tab {
+  min-height: 38px;
+  border: 1px solid #c8d2d7;
+  border-radius: 7px;
+  color: var(--muted);
+  background: #fbfdfd;
+  padding: 0 13px;
+  font-weight: 850;
+}
+
+.mode-tab.active {
+  border-color: rgba(11, 122, 117, 0.38);
+  color: var(--accent-strong);
+  background: rgba(11, 122, 117, 0.09);
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(420px, 1fr);
@@ -367,6 +402,20 @@ canvas {
   padding: 22px;
 }
 
+.study-section {
+  display: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  margin-top: 18px;
+  padding: 22px;
+}
+
+.study-section.active {
+  display: block;
+}
+
 .guide-hero {
   display: flex;
   align-items: flex-start;
@@ -459,6 +508,30 @@ select {
   margin: 10px 0 0;
   color: #34444c;
   line-height: 1.72;
+}
+
+.lesson-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.mini-visual {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid #cbd5da;
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.symbol-list {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: #34444c;
+  line-height: 1.55;
 }
 
 .lesson-meta {
@@ -585,6 +658,19 @@ select {
   font-weight: 750;
 }
 
+.practice-board,
+.qa-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(320px, 1.15fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.qa-layout .lesson-card {
+  display: grid;
+  gap: 14px;
+}
+
 .source-strip a {
   border: 1px solid #d7dee2;
   border-radius: 999px;
@@ -612,11 +698,15 @@ select {
   }
 
   .guide-hero,
-  .guide-layout {
+  .guide-layout,
+  .practice-board,
+  .qa-layout,
+  .lesson-main {
     grid-template-columns: 1fr;
   }
 
-  .guide-hero {
+  .guide-hero,
+  .mode-nav {
     flex-direction: column;
   }
 

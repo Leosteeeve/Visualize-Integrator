@@ -8,18 +8,31 @@
   </head>
   <body>
     <main class="app-shell">
-      <section class="workspace">
+      <nav class="mode-nav" aria-label="主模式">
+        <div>
+          <p class="eyebrow">Calculus Studio</p>
+          <h1>可视化积分学习系统</h1>
+        </div>
+        <div class="mode-tabs" role="tablist" aria-label="页面模式">
+          <button class="mode-tab active" data-section="learn" type="button">学习路线</button>
+          <button class="mode-tab" data-section="practice" type="button">练习模式</button>
+          <button class="mode-tab" data-section="qa" type="button">问答模式</button>
+          <button class="mode-tab" data-section="tool" type="button">可视化工具</button>
+        </div>
+      </nav>
+
+      <section class="workspace" id="toolSection">
         <aside class="control-panel" aria-label="积分输入">
           <div class="brand-row">
             <div>
-              <p class="eyebrow">Calculus Studio</p>
-              <h1>积分工作台</h1>
+              <p class="eyebrow">Tool</p>
+              <h2>积分工作台</h2>
             </div>
             <div class="engine-badge" id="engineBadge">C++</div>
           </div>
 
           <div class="field-group">
-            <label for="mode">类型</label>
+            <label for="mode">积分类型</label>
             <div class="segmented" id="mode" role="tablist" aria-label="积分类型">
               <button class="segment active" data-mode="definite" type="button">定积分</button>
               <button class="segment" data-mode="indefinite" type="button">不定积分</button>
@@ -64,43 +77,30 @@
           </div>
 
           <div class="field-group">
-            <label>符号</label>
+            <label>输入模板</label>
             <div class="palette" id="palette">
               <button type="button" data-insert="x">x</button>
               <button type="button" data-insert="y">y</button>
-              <button type="button" data-insert="^2">x²</button>
-              <button type="button" data-insert="x*y">xy</button>
+              <button type="button" data-insert="^2">□²</button>
               <button type="button" data-insert="sqrt()">√</button>
               <button type="button" data-insert="sin()">sin</button>
               <button type="button" data-insert="cos()">cos</button>
               <button type="button" data-insert="exp()">exp</button>
               <button type="button" data-insert="log()">ln</button>
+              <button type="button" data-insert="1/()">分数</button>
               <button type="button" data-insert="pi">π</button>
+              <button type="button" data-insert="oo">∞</button>
             </div>
           </div>
 
           <div class="field-group">
-            <label>模板</label>
-            <div class="examples" id="examples">
-              <button type="button" data-mode="definite" data-expression="x^2" data-lower="0" data-upper="1">∫ x²</button>
-              <button type="button" data-mode="definite" data-expression="sin(x)" data-lower="0" data-upper="pi">∫ sin</button>
-              <button type="button" data-mode="definite" data-expression="sqrt(1-x^2)" data-lower="-1" data-upper="1">半圆面积</button>
-              <button type="button" data-mode="improper" data-expression="1/x^2" data-lower="1" data-upper="oo">p 收敛</button>
-              <button type="button" data-mode="improper" data-expression="1/x" data-lower="1" data-upper="oo">p 发散</button>
-              <button type="button" data-mode="improper" data-expression="exp(-x)" data-lower="0" data-upper="oo">指数尾部</button>
-              <button type="button" data-mode="improper" data-expression="1/sqrt(x)" data-lower="0" data-upper="1">端点奇异</button>
-              <button type="button" data-mode="improper" data-expression="log(x)" data-lower="0" data-upper="1">log 端点</button>
-              <button type="button" data-mode="improper" data-expression="1/x" data-lower="-1" data-upper="1">内部奇点</button>
-              <button type="button" data-mode="double" data-expression="x*y" data-x-lower="0" data-x-upper="1" data-y-lower="0" data-y-upper="1">xy 平面</button>
-              <button type="button" data-mode="double" data-expression="x^2+y^2" data-x-lower="-1" data-x-upper="1" data-y-lower="-1" data-y-upper="1">抛物面</button>
-              <button type="button" data-mode="double" data-expression="sin(x)*cos(y)" data-x-lower="0" data-x-upper="pi" data-y-lower="0" data-y-upper="pi/2">波面</button>
-              <button type="button" data-mode="double" data-expression="exp(-(x^2+y^2))" data-x-lower="-2" data-x-upper="2" data-y-lower="-2" data-y-upper="2">高斯丘</button>
-            </div>
+            <label>常用模板</label>
+            <div class="examples" id="examples"></div>
           </div>
 
           <button class="primary-action" id="calculate" type="button">
             <span>∫</span>
-            <span>计算</span>
+            <span>计算并可视化</span>
           </button>
 
           <div class="status-line" id="statusLine">就绪</div>
@@ -142,56 +142,151 @@
         </section>
       </section>
 
-      <section class="guide-panel" aria-label="积分学习指南">
+      <section class="study-section app-section active" id="learnSection">
         <div class="guide-hero">
           <div>
-            <p class="eyebrow">Study Guide</p>
-            <h2>积分学习指南</h2>
-            <p class="guide-lede">
-              从面积、累积量和体积出发，把常积分、反常积分、二重积分与可视化工具连起来学习。
-            </p>
-          </div>
-          <div class="guide-actions">
-            <button class="secondary-action" id="generatePractice" type="button">随机生成题目</button>
-            <select id="practiceDifficulty" aria-label="题目难度">
-              <option value="easy">基础</option>
-              <option value="medium" selected>进阶</option>
-              <option value="hard">挑战</option>
-            </select>
+            <p class="eyebrow">Learn</p>
+            <h2>从零开始理解积分</h2>
+            <p class="guide-lede">每一节都先解释直觉，再解释符号，最后用图像和例题把公式落到可见的面积或体积上。</p>
           </div>
         </div>
-
-        <div class="guide-tabs" id="guideTabs" role="tablist" aria-label="学习章节">
-          <button class="guide-tab active" data-guide="foundation" type="button">概念</button>
-          <button class="guide-tab" data-guide="techniques" type="button">技巧</button>
-          <button class="guide-tab" data-guide="improper" type="button">反常</button>
-          <button class="guide-tab" data-guide="double" type="button">二重</button>
-          <button class="guide-tab" data-guide="practice" type="button">练习</button>
-        </div>
-
+        <div class="guide-tabs" id="lessonTabs" role="tablist" aria-label="学习章节"></div>
         <div class="guide-layout">
-          <article class="lesson-column" id="guideContent"></article>
-          <aside class="solution-column" aria-label="例题步骤">
+          <article class="lesson-column" id="lessonContent"></article>
+          <aside class="solution-column" aria-label="学习例题">
             <div class="solution-card">
               <div class="solution-header">
-                <p class="eyebrow">Written Solution</p>
-                <h3 id="solutionTitle">选择一个例题</h3>
+                <p class="eyebrow">Example</p>
+                <h3 id="lessonSolutionTitle">选择一个例题</h3>
               </div>
-              <div id="solutionBody" class="solution-body">
-                <p>点击章节中的例题或随机生成题目，这里会显示书面步骤、结果，并可以把题目载入上方可视化工具。</p>
+              <div id="lessonSolutionBody" class="solution-body">
+                <p>点击学习卡片中的例题，这里会展示方法、步骤和答案。</p>
               </div>
             </div>
           </aside>
         </div>
+      </section>
 
-        <div class="source-strip">
-          <span>参考路线</span>
-          <a href="https://apstudents.collegeboard.org/courses/ap-calculus-ab" target="_blank" rel="noreferrer">AP Calculus AB</a>
-          <a href="https://apstudents.collegeboard.org/courses/ap-calculus-bc" target="_blank" rel="noreferrer">AP Calculus BC</a>
-          <a href="https://ocw.mit.edu/courses/18-01sc-single-variable-calculus-fall-2010/pages/unit-4-techniques-of-integration/" target="_blank" rel="noreferrer">MIT Integration Techniques</a>
-          <a href="https://www.math.princeton.edu/undergraduate/placement/MAT104" target="_blank" rel="noreferrer">Princeton MAT104</a>
+      <section class="study-section app-section" id="practiceSection">
+        <div class="guide-hero">
+          <div>
+            <p class="eyebrow">Practice</p>
+            <h2>练习模式</h2>
+            <p class="guide-lede">选择积分种类和难度，系统会生成通过后端校验的题目，并给出方法、代数步骤和图形。</p>
+          </div>
+          <div class="guide-actions">
+            <select id="practiceKind" aria-label="积分种类">
+              <option value="definite">定积分</option>
+              <option value="indefinite">不定积分</option>
+              <option value="improper">反常积分</option>
+              <option value="double">二重积分</option>
+            </select>
+            <select id="practiceLevel" aria-label="难度">
+              <option value="easy">简单</option>
+              <option value="ap" selected>AP</option>
+              <option value="advanced">高等技巧</option>
+              <option value="mit">MIT/挑战</option>
+            </select>
+            <button class="secondary-action" id="generatePractice" type="button">生成题目</button>
+          </div>
+        </div>
+        <div class="practice-board">
+          <article class="practice-card" id="practiceProblem">
+            <strong>还没有题目</strong>
+            <p>选择类型和难度后点击“生成题目”。</p>
+          </article>
+          <article class="solution-card">
+            <div class="solution-header">
+              <p class="eyebrow">Solution</p>
+              <h3 id="practiceSolutionTitle">等待生成</h3>
+            </div>
+            <div class="solution-body" id="practiceSolutionBody">
+              <p>生成后会显示方法说明、书面计算步骤和答案。</p>
+            </div>
+          </article>
         </div>
       </section>
+
+      <section class="study-section app-section" id="qaSection">
+        <div class="guide-hero">
+          <div>
+            <p class="eyebrow">Q&A</p>
+            <h2>问答模式</h2>
+            <p class="guide-lede">输入自己的题目。推荐先选题型，再填函数和上下限；这比完整自然语言输入更稳定。</p>
+          </div>
+        </div>
+        <div class="qa-layout">
+          <article class="lesson-card">
+            <div class="field-group">
+              <label for="qaRaw">完整题目（可选）</label>
+              <input id="qaRaw" spellcheck="false" autocomplete="off" placeholder="例如: ∫_0^1 x^2 dx 或 ∫_1^oo 1/x^2 dx" />
+            </div>
+            <div class="field-group">
+              <label for="qaMode">题型</label>
+              <select id="qaMode">
+                <option value="definite">定积分</option>
+                <option value="indefinite">不定积分</option>
+                <option value="improper">反常积分</option>
+                <option value="double">二重积分</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="qaExpression">函数表达式</label>
+              <input id="qaExpression" spellcheck="false" autocomplete="off" value="x^2" />
+            </div>
+            <div class="bounds-grid" id="qaBounds">
+              <div class="field-group">
+                <label for="qaLower">下限</label>
+                <input id="qaLower" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group">
+                <label for="qaUpper">上限</label>
+                <input id="qaUpper" spellcheck="false" autocomplete="off" value="1" />
+              </div>
+            </div>
+            <div class="double-bounds-grid" id="qaDoubleBounds">
+              <div class="field-group">
+                <label for="qaXLower">x 下限</label>
+                <input id="qaXLower" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group">
+                <label for="qaXUpper">x 上限</label>
+                <input id="qaXUpper" spellcheck="false" autocomplete="off" value="1" />
+              </div>
+              <div class="field-group">
+                <label for="qaYLower">y 下限</label>
+                <input id="qaYLower" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group">
+                <label for="qaYUpper">y 上限</label>
+                <input id="qaYUpper" spellcheck="false" autocomplete="off" value="1" />
+              </div>
+            </div>
+            <div class="field-group">
+              <label>快速输入</label>
+              <div class="palette" id="qaPalette"></div>
+            </div>
+            <button class="primary-action" id="askQuestion" type="button">解答并显示步骤</button>
+          </article>
+          <article class="solution-card">
+            <div class="solution-header">
+              <p class="eyebrow">Answer</p>
+              <h3 id="qaSolutionTitle">等待输入</h3>
+            </div>
+            <div class="solution-body" id="qaSolutionBody">
+              <p>这里会显示方法识别、计算步骤、答案和可视化结果。</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="source-strip">
+        <span>参考路线</span>
+        <a href="https://apstudents.collegeboard.org/courses/ap-calculus-ab" target="_blank" rel="noreferrer">AP Calculus AB</a>
+        <a href="https://apstudents.collegeboard.org/courses/ap-calculus-bc" target="_blank" rel="noreferrer">AP Calculus BC</a>
+        <a href="https://ocw.mit.edu/courses/18-01sc-single-variable-calculus-fall-2010/pages/unit-4-techniques-of-integration/" target="_blank" rel="noreferrer">MIT Integration Techniques</a>
+        <a href="https://www.math.princeton.edu/undergraduate/placement/MAT104" target="_blank" rel="noreferrer">Princeton MAT104</a>
+      </div>
     </main>
 
     <script>

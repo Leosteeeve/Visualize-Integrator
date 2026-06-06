@@ -4,6 +4,7 @@ import json
 import math
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -754,6 +755,261 @@ def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
     return response
 
 
+def normalize_raw_integral(raw: str) -> str:
+    return (
+        raw.strip()
+        .replace("∞", "oo")
+        .replace("π", "pi")
+        .replace("−", "-")
+        .replace("×", "*")
+        .replace("·", "*")
+    )
+
+
+def apply_raw_integral(request: dict[str, Any]) -> dict[str, Any]:
+    raw = normalize_raw_integral(str(request.get("raw", "")))
+    if not raw:
+        return request
+
+    spaced_single = re.match(r"^∫_([^\^]+)\^([^\s]+)\s+(.+?)\s*dx$", raw)
+    if spaced_single:
+        lower_text, upper_text, expression_text = spaced_single.groups()
+        updated = dict(request)
+        updated["expression"] = expression_text
+        updated["lower"] = lower_text
+        updated["upper"] = upper_text
+        if upper_text in {"oo", "+oo", "infty", "infinity"} or lower_text in {"-oo", "-infty", "-infinity"}:
+            updated["mode"] = "improper"
+        else:
+            updated.setdefault("mode", "definite")
+        return updated
+
+    compact = re.sub(r"\s+", "", raw)
+    double_match = re.match(r"^∫∫(.+?)(?:dA|dxdy|dydx)$", compact)
+    if double_match:
+        updated = dict(request)
+        updated["mode"] = "double"
+        updated["expression"] = double_match.group(1)
+        updated.setdefault("xLower", "0")
+        updated.setdefault("xUpper", "1")
+        updated.setdefault("yLower", "0")
+        updated.setdefault("yUpper", "1")
+        return updated
+
+    single_match = re.match(r"^∫_([^\^]+)\^(-?oo|\+?oo|-?infty|\+?infty|pi|-?\d+(?:\.\d+)?)(.+)dx$", compact)
+    if single_match:
+        lower_text, upper_text, expression_text = single_match.groups()
+        updated = dict(request)
+        updated["expression"] = expression_text
+        updated["lower"] = lower_text
+        updated["upper"] = upper_text
+        if upper_text in {"oo", "+oo", "infty", "infinity"} or lower_text in {"-oo", "-infty", "-infinity"}:
+            updated["mode"] = "improper"
+        else:
+            updated.setdefault("mode", "definite")
+        return updated
+
+    return request
+
+
+def solve_statement_latex(request: dict[str, Any], integration: dict[str, Any]) -> str:
+    mode = integration.get("mode")
+    expr_latex = integration.get("expression_latex", str(request.get("expression", "")))
+    bounds = integration.get("bounds", {})
+    if mode == "indefinite":
+        return f"\\int {expr_latex}\\,dx"
+    if mode == "double":
+        return (
+            "\\int_{"
+            + bounds.get("x_lower_latex", "a")
+            + "}^{"
+            + bounds.get("x_upper_latex", "b")
+            + "}\\int_{"
+            + bounds.get("y_lower_latex", "c")
+            + "}^{"
+            + bounds.get("y_upper_latex", "d")
+            + "}"
+            + expr_latex
+            + "\\,dy\\,dx"
+        )
+    return (
+        "\\int_{"
+        + bounds.get("lower_latex", "a")
+        + "}^{"
+        + bounds.get("upper_latex", "b")
+        + "}"
+        + expr_latex
+        + "\\,dx"
+    )
+
+
+def result_latex(integration: dict[str, Any]) -> str:
+    exact = integration.get("exact", {})
+    if exact.get("available") and exact.get("latex"):
+        return exact["latex"]
+    antiderivative = integration.get("antiderivative", {})
+    if antiderivative.get("available") and antiderivative.get("latex"):
+        return antiderivative["latex"] + "+C"
+    numeric = integration.get("numeric", {})
+    if numeric.get("ok") is False:
+        return "\\text{发散或无有限值}"
+    value = numeric.get("value")
+    if value is not None:
+        return str(value)
+    return "\\text{暂无法给出闭式结果}"
+
+
+def is_simple_u_sub(expr: sp.Expr) -> bool:
+    return bool(expr.has(sp.cos(x**2), sp.sin(x**2), sp.exp(x**2))) and bool(expr.has(x))
+
+
+def is_parts_candidate(expr: sp.Expr) -> bool:
+    return bool(
+        expr.has(x * sp.exp(x))
+        or expr.has(x * sp.sin(x))
+        or expr.has(x * sp.cos(x))
+        or expr.has(sp.log(x))
+    )
+
+
+def is_separable_xy(expr: sp.Expr) -> bool:
+    if not expr.has(x) or not expr.has(y):
+        return False
+    factors = sp.Mul.make_args(sp.factor(expr))
+    has_x_factor = any(free <= {x} and free for free in (factor.free_symbols for factor in factors))
+    has_y_factor = any(free <= {y} and free for free in (factor.free_symbols for factor in factors))
+    return has_x_factor and has_y_factor
+
+
+def identify_solution_method(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any]) -> tuple[str, str]:
+    mode = integration.get("mode")
+    if mode == "double":
+        if is_separable_xy(expr):
+            return "矩形区域二重积分：可分离函数", "把曲面高度写成 x 部分和 y 部分的乘积，再把二重积分拆成两个一元积分。"
+        if expr.is_polynomial(x, y):
+            return "矩形区域二重积分：累次积分", "先固定 x 对 y 积分，再对 x 积分；也可以理解为曲面下的有向体积。"
+        return "矩形区域二重积分：数值与符号结合", "在矩形区域上累积曲面高度，优先给精确结果，必要时用数值积分核验。"
+    if mode == "improper":
+        return "反常积分：极限定义", "先把无穷端点或奇异端点改写成极限，再判断极限是否有限。"
+    if mode == "indefinite":
+        if expr.is_polynomial(x):
+            return "不定积分：幂函数公式", "逐项使用幂函数积分公式，并加上常数 C。"
+        if is_parts_candidate(expr):
+            return "不定积分：分部积分候选", "这是乘积型表达式，优先考虑分部积分；若规则不完全匹配，则用符号引擎核验。"
+        return "不定积分：寻找原函数", "目标是找到一个求导后等于原函数的 F(x)。"
+    if expr.is_polynomial(x):
+        return "定积分：幂函数公式 + 微积分基本定理", "先求原函数，再代入上下限得到有向面积。"
+    if is_simple_u_sub(expr):
+        return "定积分：换元法", "识别内层函数和它的导数，把复杂复合函数化成更简单的一元积分。"
+    if is_parts_candidate(expr):
+        return "定积分：分部积分", "乘积型函数通常考虑分部积分，然后用上下限代入。"
+    if expr.has(sp.sin, sp.cos, sp.tan):
+        return "定积分：三角函数基本积分", "先用基础三角函数原函数，再通过图像检查正负面积。"
+    return "定积分：符号计算 + 数值核验", "先尝试精确积分，再用数值积分和图像检查答案大小。"
+
+
+def solve_steps(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any], method: str) -> list[str]:
+    mode = integration.get("mode")
+    statement = solve_statement_latex(request, integration)
+    final = result_latex(integration)
+    steps: list[str] = [f"题目写作：\\({statement}\\)。", f"方法判断：{method}。"]
+
+    if mode == "double":
+        bounds = integration.get("bounds", {})
+        steps.append(
+            "区域是矩形："
+            f"\\(x\\in[{bounds.get('x_lower_latex','a')},{bounds.get('x_upper_latex','b')}],"
+            f"y\\in[{bounds.get('y_lower_latex','c')},{bounds.get('y_upper_latex','d')}]\\)。"
+        )
+        if is_separable_xy(expr):
+            steps.append("因为函数可分离，矩形区域上的二重积分可以拆成 x 积分与 y 积分的乘积。")
+        else:
+            steps.append("按累次积分理解：先对内层变量积分，再对外层变量积分。")
+        steps.append("图像中底面矩形是积分区域，曲面 \\(z=f(x,y)\\) 的高度累积成体积。")
+    elif mode == "improper":
+        improper = integration.get("improper", {})
+        steps.append("反常积分不能直接把无穷或奇点当普通数字代入，必须先写成极限。")
+        if improper.get("singularities"):
+            points = ", ".join(item.get("text", "?") for item in improper["singularities"])
+            steps.append(f"检测到奇点：\\({points}\\)，需要用单侧极限分段处理。")
+        if improper.get("status"):
+            status_text = {"convergent": "收敛", "divergent": "发散", "unknown": "待判定"}.get(improper["status"], improper["status"])
+            steps.append(f"符号判定结果：{status_text}。{improper.get('reason', '')}")
+    elif mode == "indefinite":
+        antiderivative = integration.get("antiderivative", {})
+        if antiderivative.get("available"):
+            steps.append(f"找到原函数：\\(F(x)={antiderivative.get('latex')}\\)。")
+            steps.append("不定积分答案要加常数 \\(C\\)，因为常数求导后为 0。")
+        else:
+            steps.append("符号引擎暂时没有找到可靠闭式原函数，可以保留为数值或特殊函数形式。")
+    else:
+        antiderivative = integration.get("antiderivative", {})
+        if antiderivative.get("available"):
+            bounds = integration.get("bounds", {})
+            steps.append(f"先求原函数：\\(F(x)={antiderivative.get('latex')}\\)。")
+            steps.append(
+                "使用微积分基本定理："
+                f"\\(\\int_{{{bounds.get('lower_latex','a')}}}^{{{bounds.get('upper_latex','b')}}}f(x)\\,dx="
+                f"F({bounds.get('upper_latex','b')})-F({bounds.get('lower_latex','a')})\\)。"
+            )
+        else:
+            steps.append("没有可靠闭式原函数时，使用自适应数值积分并用图像检查面积大小。")
+
+    exact = integration.get("exact", {})
+    numeric = integration.get("numeric", {})
+    if exact.get("available"):
+        steps.append(f"精确结果：\\({exact.get('latex')}\\)。")
+    if numeric.get("value") is not None:
+        steps.append(f"数值核验：\\({numeric.get('value')}\\)，误差估计约为 \\({numeric.get('estimated_error')}\\)。")
+    steps.append(f"最终答案：\\({final}\\)。")
+    return steps
+
+
+def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
+    try:
+        request = apply_raw_integral(request)
+        integration = integrate_payload(request)
+        if not integration.get("ok"):
+            return {
+                **integration,
+                "problem_type": integration.get("mode", request.get("mode")),
+                "method": "无法可靠识别方法",
+                "method_explanation": "题目格式或表达式暂时无法解析，请检查函数、变量和上下限。",
+                "statement_latex": "",
+                "result_latex": "",
+                "steps": [
+                    "题目没有成功解析，因此没有生成计算步骤。",
+                    f"错误信息：{integration.get('error', '未知错误')}",
+                ],
+            }
+
+        expr = parse_math(str(request.get("expression", "")))
+        method, explanation = identify_solution_method(request, expr, integration)
+        statement = solve_statement_latex(request, integration)
+        return {
+            **integration,
+            "problem_type": integration.get("mode"),
+            "method": method,
+            "method_explanation": explanation,
+            "statement_latex": statement,
+            "result_latex": result_latex(integration),
+            "steps": solve_steps(request, expr, integration, method),
+        }
+    except Exception as exc:
+        return {
+            **make_error_response(exc),
+            "problem_type": request.get("mode"),
+            "method": "无法可靠识别方法",
+            "method_explanation": "题目格式或表达式暂时无法解析，请检查函数、变量和上下限。",
+            "statement_latex": "",
+            "result_latex": "",
+            "steps": [
+                "题目没有成功解析，因此没有生成计算步骤。",
+                f"错误信息：{exc}",
+            ],
+        }
+
+
 def make_error_response(exc: Exception) -> dict[str, Any]:
     return {
         "ok": False,
@@ -792,7 +1048,7 @@ class CalculusHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path != "/api/integrate":
+        if parsed.path not in {"/api/integrate", "/api/solve"}:
             self.send_error(404)
             return
 
@@ -800,7 +1056,7 @@ class CalculusHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length)
             request = json.loads(body.decode("utf-8"))
-            response = integrate_payload(request)
+            response = solve_payload(request) if parsed.path == "/api/solve" else integrate_payload(request)
             self.send_json(200, response)
         except Exception as exc:
             self.send_json(400, make_error_response(exc))
