@@ -67,6 +67,28 @@ def main():
         and english["algebra_steps"]["formula_cards"][0]["title"] == "Substitution",
     )
 
+    parts = post_json(
+        "/api/solve",
+        {"mode": "definite", "expression": "x*log(x)", "lower": "1", "upper": "3"},
+    )
+    expect(
+        "http parts method aligned",
+        parts["ok"]
+        and parts["method"] == "分部积分"
+        and parts["algebra_steps"]["recipe_id"] == "integration_by_parts",
+    )
+
+    indefinite_exp_trig = post_json(
+        "/api/solve",
+        {"mode": "indefinite", "expression": "exp(x)*sin(x)"},
+    )
+    expect(
+        "http indefinite exp trig method aligned",
+        indefinite_exp_trig["ok"]
+        and indefinite_exp_trig["method"] == "重复分部积分"
+        and indefinite_exp_trig["algebra_steps"]["recipe_id"] == "repeated_integration_by_parts",
+    )
+
     double = post_json(
         "/api/solve",
         {

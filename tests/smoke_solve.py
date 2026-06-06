@@ -63,6 +63,55 @@ def main():
         and len(r["algebra_steps"]["notes"]) == 2,
     )
     check(
+        "method aligns with integration by parts",
+        {"mode": "definite", "expression": "x*log(x)", "lower": "1", "upper": "3"},
+        lambda r: r["ok"]
+        and r["method"] == "分部积分"
+        and r["algebra_steps"]["recipe_id"] == "integration_by_parts"
+        and "微积分基本定理" not in r["method"]
+        and any("分部积分" in card["title"] for card in r["algebra_steps"]["formula_cards"]),
+    )
+    check(
+        "indefinite exp trig uses repeated parts",
+        {"mode": "indefinite", "expression": "exp(x)*sin(x)"},
+        lambda r: r["ok"]
+        and r["method"] == "重复分部积分"
+        and r["algebra_steps"]["recipe_id"] == "repeated_integration_by_parts"
+        and "I" in r["algebra_steps"]["latex"]
+        and "+C" in r["algebra_steps"]["latex"],
+    )
+    check(
+        "indefinite polynomial uses power rule",
+        {"mode": "indefinite", "expression": "x^3 + 2*x"},
+        lambda r: r["ok"]
+        and r["method"] == "幂函数公式 + 逐项积分"
+        and r["algebra_steps"]["recipe_id"] == "power_rule_antiderivative"
+        and any("幂函数公式" in card["title"] for card in r["algebra_steps"]["formula_cards"]),
+    )
+    check(
+        "indefinite inverse trig formula",
+        {"mode": "indefinite", "expression": "1/(1+x^2)"},
+        lambda r: r["ok"]
+        and r["method"] == "反三角函数公式"
+        and r["algebra_steps"]["recipe_id"] == "inverse_trig_antiderivative",
+    )
+    check(
+        "scaled trig parts stays aligned",
+        {"mode": "definite", "expression": "x*sin(3*x)", "lower": "0", "upper": "pi"},
+        lambda r: r["ok"]
+        and r["method"] == "分部积分"
+        and r["algebra_steps"]["recipe_id"] == "integration_by_parts"
+        and any("分部积分" in step for step in r["steps"]),
+    )
+    check(
+        "fallback method follows algebra recipe",
+        {"mode": "definite", "expression": "1/(1+x^2)", "lower": "0", "upper": "1"},
+        lambda r: r["ok"]
+        and r["algebra_steps"]["recipe_id"] == "fundamental_theorem"
+        and r["method"] == "微积分基本定理"
+        and "分部积分" not in r["method"],
+    )
+    check(
         "english solve localization",
         {
             "mode": "definite",

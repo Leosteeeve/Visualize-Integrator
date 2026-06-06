@@ -53,16 +53,59 @@ TAG_TRANSLATIONS = {
     "雅可比": "Jacobian",
     "降幂公式": "power-reduction identity",
     "积化和差": "product-to-sum identity",
+    "幂函数公式": "power rule",
+    "逐项积分": "term-by-term integration",
+    "基础积分公式": "basic antiderivative formulas",
+    "反三角函数公式": "inverse trigonometric formula",
+    "重复分部积分": "repeated integration by parts",
 }
 
 
 FORMULA_CARDS = {
     "generic_antiderivative": {
         "zh-CN": [
-            ("原函数定义", r"F'(x)=f(x)", "找到一个求导后等于被积函数的函数。"),
+            ("不定积分结果形式", r"\int f(x)\,dx=F(x)+C", "不定积分和定积分使用同样的求积技巧；区别是这里不代上下限，最后加常数。"),
         ],
         "en-US": [
-            ("Antiderivative definition", r"F'(x)=f(x)", "Find a function whose derivative is the integrand."),
+            ("Indefinite integral form", r"\int f(x)\,dx=F(x)+C", r"Indefinite integrals use the same techniques as definite integrals; no bounds are evaluated, and \(C\) is added."),
+        ],
+    },
+    "power_rule_antiderivative": {
+        "zh-CN": [
+            ("线性性质", r"\int(af(x)+bg(x))\,dx=a\int f(x)\,dx+b\int g(x)\,dx", "多项式可以拆成一项一项来积。"),
+            ("幂函数公式", r"\int x^n\,dx=\frac{x^{n+1}}{n+1}+C\quad(n\ne -1)", "每一项指数加 1，再除以新的指数。"),
+        ],
+        "en-US": [
+            ("Linearity", r"\int(af(x)+bg(x))\,dx=a\int f(x)\,dx+b\int g(x)\,dx", "A polynomial can be integrated term by term."),
+            ("Power rule", r"\int x^n\,dx=\frac{x^{n+1}}{n+1}+C\quad(n\ne -1)", "Increase the exponent by 1, then divide by the new exponent."),
+        ],
+    },
+    "basic_antiderivative_formula": {
+        "zh-CN": [
+            ("基础积分公式", r"\int e^x\,dx=e^x+C,\quad \int\sin x\,dx=-\cos x+C,\quad \int\cos x\,dx=\sin x+C", "先识别表达式属于哪一类基础函数，再直接套公式。"),
+            ("不定积分常数", r"+C", "不代入上下限时，所有相差常数的原函数都正确。"),
+        ],
+        "en-US": [
+            ("Basic formulas", r"\int e^x\,dx=e^x+C,\quad \int\sin x\,dx=-\cos x+C,\quad \int\cos x\,dx=\sin x+C", "Identify the basic function type, then apply the matching formula."),
+            ("Constant of integration", r"+C", "Without bounds, antiderivatives that differ by a constant are all valid."),
+        ],
+    },
+    "inverse_trig_antiderivative": {
+        "zh-CN": [
+            ("反三角函数公式", r"\int\frac{1}{1+x^2}\,dx=\arctan x+C", r"分母是 \(1+x^2\) 的有理式会对应反正切函数。"),
+        ],
+        "en-US": [
+            ("Inverse trig formula", r"\int\frac{1}{1+x^2}\,dx=\arctan x+C", r"A denominator of \(1+x^2\) matches the arctangent formula."),
+        ],
+    },
+    "repeated_integration_by_parts": {
+        "zh-CN": [
+            ("分部积分", r"\int u\,dv=uv-\int v\,du", "指数函数乘三角函数时，分部积分后会回到同类积分。"),
+            ("移项求原积分", r"I=A-BI\quad\Rightarrow\quad I=\frac{A}{1+B}", "重复分部积分后把原积分移到同一边解出来。"),
+        ],
+        "en-US": [
+            ("Integration by parts", r"\int u\,dv=uv-\int v\,du", "For exponential times trigonometric functions, integration by parts returns to a related integral."),
+            ("Solve for the original integral", r"I=A-BI\quad\Rightarrow\quad I=\frac{A}{1+B}", "After the integral reappears, move it to the same side and solve for it."),
         ],
     },
     "fundamental_theorem": {
@@ -154,8 +197,24 @@ FORMULA_CARDS = {
 
 REASONING_STEPS = {
     "generic_antiderivative": {
-        "zh-CN": ["这是不定积分，目标是找一个求导后回到被积函数的原函数。", r"求出原函数后要加 \(C\)，因为任意常数求导都是 0。"],
-        "en-US": ["This is an indefinite integral, so the goal is to find an antiderivative.", r"After finding one antiderivative, add \(C\) because every constant has derivative 0."],
+        "zh-CN": ["这是不定积分，但技巧仍然和定积分一样：先判断被积函数结构，再求原函数。", r"区别只是不代入上下限，最后加 \(C\)。"],
+        "en-US": ["This is an indefinite integral, but the technique is the same as for definite integrals: identify the integrand structure first.", r"The only difference is that no bounds are evaluated, and \(C\) is added."],
+    },
+    "power_rule_antiderivative": {
+        "zh-CN": ["识别到多项式或幂函数组合。", "用线性性质拆开每一项，再逐项使用幂函数积分公式。", r"这是定积分里求 \(F(x)\) 的同一个步骤，只是不计算 \(F(b)-F(a)\)。"],
+        "en-US": ["We see a polynomial or a combination of powers.", "Use linearity to split the terms, then apply the power rule term by term.", r"This is the same step used before evaluating \(F(b)-F(a)\) in a definite integral."],
+    },
+    "basic_antiderivative_formula": {
+        "zh-CN": ["识别到基础指数、三角、对数或根式积分。", "直接套对应的基础积分公式；如果有常数倍，用线性性质提到积分外。", r"因为没有上下限，最后保留 \(+C\)。"],
+        "en-US": ["We see a basic exponential, trigonometric, logarithmic, or radical integral.", "Apply the matching basic formula; constant factors stay outside by linearity.", r"Because there are no bounds, keep \(+C\) at the end."],
+    },
+    "inverse_trig_antiderivative": {
+        "zh-CN": [r"识别到 \(\frac{1}{1+x^2}\) 型结构。", r"这个结构对应 \(\arctan x\) 的导数，所以用反三角函数公式。"],
+        "en-US": [r"We recognize the \(\frac{1}{1+x^2}\) pattern.", r"This is the derivative pattern for \(\arctan x\), so use the inverse trigonometric formula."],
+    },
+    "repeated_integration_by_parts": {
+        "zh-CN": ["识别到指数函数和三角函数相乘。", "这类题用分部积分一次后还会出现另一个指数三角积分。", "第二次分部积分后原积分重新出现，把它移到等式同一边求解。"],
+        "en-US": ["We see an exponential function multiplied by a trigonometric function.", "One integration by parts creates the companion exponential-trig integral.", "A second integration by parts makes the original integral reappear; move it to one side and solve."],
     },
     "fundamental_theorem": {
         "zh-CN": ["这是有限区间上的定积分。", r"先找原函数 \(F\)，再用 \(F(b)-F(a)\) 表示从 \(a\) 到 \(b\) 的净累积量。"],
@@ -327,12 +386,30 @@ def build_generic_single_variable(
         return None
     anti_latex = anti["latex"]
     if mode == "indefinite":
+        recipe_id = "generic_antiderivative"
+        method_tags = ["基本公式"]
+        extra_lines: list[str] = []
+        if expr.is_polynomial(x):
+            recipe_id = "power_rule_antiderivative"
+            method_tags = ["幂函数公式", "逐项积分"]
+            expanded = sp.expand(expr)
+            if expanded != expr:
+                extra_lines.append(rf"{safe_latex(expr)} &= {safe_latex(expanded)}")
+        else:
+            arctan_pattern = 1 / (1 + x**2)
+            arctan_coeff = sp.simplify(expr / arctan_pattern)
+            if not arctan_coeff.has(x) and is_zero(expr - arctan_coeff * arctan_pattern):
+                recipe_id = "inverse_trig_antiderivative"
+                method_tags = ["反三角函数公式", "基础积分公式"]
+            elif expr.has(sp.sin, sp.cos, sp.exp, sp.log) or expr.has(x ** sp.Rational(1, 2)):
+                recipe_id = "basic_antiderivative_formula"
+                method_tags = ["基础积分公式", "逐项积分"]
         return response(
             available=True,
             explainability="full",
-            recipe_id="generic_antiderivative",
-            method_tags=["原函数", "基本公式"],
-            lines=[
+            recipe_id=recipe_id,
+            method_tags=method_tags,
+            lines=extra_lines + [
                 rf"{statement_latex} &= {anti_latex}+C",
             ],
             verified=bool(anti.get("verified")),
@@ -610,6 +687,99 @@ def build_product_to_sum(
     return None
 
 
+def build_exp_trig_repeated_parts(
+    mode: str,
+    expr: sp.Expr,
+    integration: dict[str, Any],
+    statement_latex: str,
+    final_latex: str,
+    x: sp.Symbol,
+) -> dict[str, Any] | None:
+    if mode not in {"definite", "indefinite"}:
+        return None
+
+    candidates: list[tuple[sp.Expr, str, int, int, sp.Expr]] = []
+    for a in range(1, 7):
+        for b in range(1, 7):
+            candidates.append(
+                (
+                    sp.exp(a * x) * sp.sin(b * x),
+                    "sin",
+                    a,
+                    b,
+                    sp.exp(a * x) * (a * sp.sin(b * x) - b * sp.cos(b * x)) / (a**2 + b**2),
+                )
+            )
+            candidates.append(
+                (
+                    sp.exp(a * x) * sp.cos(b * x),
+                    "cos",
+                    a,
+                    b,
+                    sp.exp(a * x) * (a * sp.cos(b * x) + b * sp.sin(b * x)) / (a**2 + b**2),
+                )
+            )
+
+    for pattern, trig_kind, a, b, anti_base in candidates:
+        coeff = sp.simplify(expr / pattern)
+        if coeff.has(x) or not is_zero(expr - coeff * pattern):
+            continue
+
+        exp_latex = safe_latex(sp.exp(a * x))
+        sin_latex = safe_latex(sp.sin(b * x))
+        cos_latex = safe_latex(sp.cos(b * x))
+        denominator = a**2 + b**2
+        anti_expr = sp.simplify(coeff * anti_base)
+        coeff_text = coefficient_prefix(coeff)
+
+        if trig_kind == "sin":
+            setup_lines = [
+                rf"I &= \int {exp_latex}{sin_latex}\,dx,\quad J=\int {exp_latex}{cos_latex}\,dx",
+                rf"I &= \frac{{{exp_latex}{sin_latex}}}{{{a}}}-\frac{{{b}}}{{{a}}}J",
+                rf"J &= \frac{{{exp_latex}{cos_latex}}}{{{a}}}+\frac{{{b}}}{{{a}}}I",
+                rf"I &= \frac{{{exp_latex}\left({a}{sin_latex}-{b}{cos_latex}\right)}}{{{denominator}}}",
+            ]
+        else:
+            setup_lines = [
+                rf"I &= \int {exp_latex}{cos_latex}\,dx,\quad J=\int {exp_latex}{sin_latex}\,dx",
+                rf"I &= \frac{{{exp_latex}{cos_latex}}}{{{a}}}+\frac{{{b}}}{{{a}}}J",
+                rf"J &= \frac{{{exp_latex}{sin_latex}}}{{{a}}}-\frac{{{b}}}{{{a}}}I",
+                rf"I &= \frac{{{exp_latex}\left({a}{cos_latex}+{b}{sin_latex}\right)}}{{{denominator}}}",
+            ]
+
+        if mode == "indefinite":
+            lines = setup_lines + [
+                rf"{statement_latex} &= {coeff_text}I",
+                rf"&= {safe_latex(anti_expr)}+C",
+            ]
+            return response(
+                available=True,
+                explainability="full",
+                recipe_id="repeated_integration_by_parts",
+                method_tags=["分部积分", "重复分部积分"],
+                lines=lines,
+                verified=final_is_verified(integration),
+            )
+
+        bounds = integration.get("bounds", {})
+        lower = bounds.get("lower_latex", "a")
+        upper = bounds.get("upper_latex", "b")
+        lines = setup_lines + [
+            rf"{statement_latex} &= \left[{safe_latex(anti_expr)}\right]_{{{lower}}}^{{{upper}}}",
+            rf"&= {final_latex}",
+        ]
+        return response(
+            available=True,
+            explainability="full",
+            recipe_id="repeated_integration_by_parts",
+            method_tags=["分部积分", "重复分部积分"],
+            lines=lines,
+            verified=final_is_verified(integration),
+        )
+
+    return None
+
+
 def build_parts(
     mode: str,
     expr: sp.Expr,
@@ -618,12 +788,40 @@ def build_parts(
     final_latex: str,
     x: sp.Symbol,
 ) -> dict[str, Any] | None:
-    candidates = [
-        (x * sp.exp(x), x, sp.exp(x), sp.exp(x), sp.exp(x), (x - 1) * sp.exp(x)),
-        (x * sp.sin(x), x, sp.sin(x), 1, -sp.cos(x), sp.sin(x) - x * sp.cos(x)),
-        (x * sp.cos(x), x, sp.cos(x), 1, sp.sin(x), x * sp.sin(x) + sp.cos(x)),
+    candidates: list[tuple[sp.Expr, sp.Expr, sp.Expr, sp.Expr, sp.Expr, sp.Expr]] = [
         (sp.log(x), sp.log(x), 1, 1 / x, x, x * sp.log(x) - x),
+        (x * sp.log(x), sp.log(x), x, 1 / x, x**2 / 2, x**2 * sp.log(x) / 2 - x**2 / 4),
+        (sp.log(x) ** 2, sp.log(x) ** 2, 1, 2 * sp.log(x) / x, x, x * sp.log(x) ** 2 - 2 * x * sp.log(x) + 2 * x),
     ]
+    for k in range(1, 7):
+        candidates.extend(
+            [
+                (
+                    x * sp.exp(k * x),
+                    x,
+                    sp.exp(k * x),
+                    1,
+                    sp.exp(k * x) / k,
+                    x * sp.exp(k * x) / k - sp.exp(k * x) / k**2,
+                ),
+                (
+                    x * sp.sin(k * x),
+                    x,
+                    sp.sin(k * x),
+                    1,
+                    -sp.cos(k * x) / k,
+                    -x * sp.cos(k * x) / k + sp.sin(k * x) / k**2,
+                ),
+                (
+                    x * sp.cos(k * x),
+                    x,
+                    sp.cos(k * x),
+                    1,
+                    sp.sin(k * x) / k,
+                    x * sp.sin(k * x) / k + sp.cos(k * x) / k**2,
+                ),
+            ]
+        )
     for pattern, u_expr, dv_expr, du_expr, v_expr, anti_expr in candidates:
         coeff = sp.simplify(expr / pattern)
         if coeff.has(x) or not is_zero(expr - coeff * pattern):
@@ -860,6 +1058,7 @@ def build_algebra_steps(
             build_sin_power_cos,
             build_trig_power_reduction,
             build_product_to_sum,
+            build_exp_trig_repeated_parts,
             build_parts,
             build_generic_single_variable,
         ]

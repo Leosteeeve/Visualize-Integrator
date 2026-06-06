@@ -45,6 +45,8 @@ def main():
                 expect(f"{kind}/{level}/{index} solution ok", result["solution"]["ok"])
                 expect(f"{kind}/{level}/{index} recipe metadata", bool(result["problem"].get("recipe")))
                 expect(f"{kind}/{level}/{index} algebra field", "algebra_steps" in result["solution"])
+                expected_method, _ = server.method_from_algebra(result["solution"]["algebra_steps"], "zh-CN")
+                expect(f"{kind}/{level}/{index} method follows algebra", result["solution"]["method"] == expected_method)
                 pair_seen.add(signature)
                 seen.add(signature)
 
@@ -69,6 +71,22 @@ def main():
     expect("english practice solution localized", english["solution"]["language"] == "en-US")
     expect("english practice algebra localized", english["solution"]["algebra_steps"]["language"] == "en-US")
     expect("english practice concepts localized", all("法" not in item for item in english["problem"].get("concepts", [])))
+
+    for index in (0, 1, 2, 3, 9):
+        item = problem_generator.make_definite_advanced(problem_generator.make_rng(f"parts-align-{index}"), index)
+        solution = server.solve_payload(problem_generator.payload_for(item))
+        expect(f"advanced parts title {index} solution ok", solution["ok"])
+        expect(
+            f"advanced parts title {index} recipe aligned",
+            solution["algebra_steps"]["recipe_id"] == "integration_by_parts",
+        )
+        expect(f"advanced parts title {index} method aligned", solution["method"] == "分部积分")
+
+    exp_trig = problem_generator.make_indefinite_advanced(problem_generator.make_rng("indefinite-exp-trig"), 9)
+    exp_trig_solution = server.solve_payload(problem_generator.payload_for(exp_trig))
+    expect("indefinite exp trig generated solution ok", exp_trig_solution["ok"])
+    expect("indefinite exp trig recipe aligned", exp_trig_solution["algebra_steps"]["recipe_id"] == "repeated_integration_by_parts")
+    expect("indefinite exp trig method aligned", exp_trig_solution["method"] == "重复分部积分")
 
     bad = server.generate_practice_payload({"kind": "vector", "level": "easy"})
     expect("invalid kind handled", not bad["ok"] and bool(bad["error"]))

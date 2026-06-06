@@ -1293,13 +1293,37 @@ METHOD_ENGLISH = {
     "trig_power_reduction": ("Trigonometric power reduction", "An even trigonometric power is rewritten with a power-reduction identity before integrating."),
     "trig_product_to_sum": ("Product-to-sum identity", "A product of trigonometric functions is rewritten as a sum so each term can be integrated directly."),
     "integration_by_parts": ("Integration by parts", "For a product, choose one factor to differentiate and the other to integrate, then apply the integration-by-parts formula."),
+    "repeated_integration_by_parts": ("Repeated integration by parts", "For exponential times trigonometric functions, integration by parts makes the original integral reappear; solve for it algebraically."),
+    "power_rule_antiderivative": ("Power rule and term-by-term integration", r"Use the same antiderivative step as in a definite integral, but do not evaluate bounds; add the constant \(C\)."),
+    "basic_antiderivative_formula": ("Basic antiderivative formulas", "Match the integrand to a basic formula, just as before evaluating a definite integral."),
+    "inverse_trig_antiderivative": ("Inverse trigonometric formula", "The rational pattern matches the derivative of an inverse trigonometric function."),
     "trig_identity_abs_piecewise": ("Trigonometric identity and sign split", "Factor the radical, use a Pythagorean identity, then split the absolute value where the sign changes."),
     "improper_limit": ("Improper integral: limit definition", "Rewrite the infinite or singular endpoint as a limit before evaluating."),
     "rectangular_double_integral": ("Double integral over a rectangle", "Compute the iterated integral one variable at a time."),
     "polar_area_formula": ("Polar area formula", "Use the thin-sector area element for a polar curve."),
     "polar_double_jacobian": ("Polar double integral: Jacobian factor", r"In polar coordinates the area element is multiplied by the Jacobian factor \(r\)."),
     "fundamental_theorem": ("Definite integral: Fundamental Theorem of Calculus", "Find an antiderivative first, then evaluate it at the upper and lower bounds."),
-    "generic_antiderivative": ("Indefinite integral: antiderivative", "Find a function whose derivative is the integrand, then add the constant of integration."),
+    "generic_antiderivative": ("Indefinite integral: antiderivative technique", r"Use the same technique-selection step as a definite integral, then write the antiderivative with \(C\) instead of evaluating bounds."),
+}
+
+
+METHOD_CHINESE = {
+    "u_sub_cos_power_sin": ("换元法", "被积函数里有 \\(\\cos x\\) 的幂，同时出现 \\(\\sin x\\,dx\\)，所以把 \\(\\cos x\\) 设为新变量。"),
+    "u_sub_sin_power_cos": ("换元法", "被积函数里有 \\(\\sin x\\) 的幂，同时出现 \\(\\cos x\\,dx\\)，所以把 \\(\\sin x\\) 设为新变量。"),
+    "trig_power_reduction": ("三角降幂公式", "识别到偶次三角幂，先用降幂公式把平方项化成常数项和二倍角项，再逐项积分。"),
+    "trig_product_to_sum": ("积化和差公式", "识别到两个三角函数相乘，先用积化和差公式改写成几个可以直接积分的三角函数。"),
+    "integration_by_parts": ("分部积分", "识别到乘积型表达式，选择一部分作为 \\(u\\)，另一部分作为 \\(dv\\)，再使用 \\(\\int u\\,dv=uv-\\int v\\,du\\)。"),
+    "repeated_integration_by_parts": ("重复分部积分", "指数函数乘三角函数时，分部积分会让原积分重新出现；把原积分移到同一边解出来。"),
+    "power_rule_antiderivative": ("幂函数公式 + 逐项积分", "这和定积分第一步一样：先按幂函数公式求出原函数；区别是不用代上下限，最后加 \\(C\\)。"),
+    "basic_antiderivative_formula": ("基础积分公式", "先识别指数、三角、对数或根式等基础函数，再套对应积分公式；不定积分最后加 \\(C\\)。"),
+    "inverse_trig_antiderivative": ("反三角函数公式", "识别到反三角函数的导数结构，直接使用对应原函数公式。"),
+    "trig_identity_abs_piecewise": ("三角恒等变形 + 绝对值分段", "先因式分解并使用 \\(1-\\sin^2x=\\cos^2x\\)，开平方后按 \\(|\\cos x|\\) 的符号分段。"),
+    "improper_limit": ("反常积分：极限定义", "先把无穷端点或奇异端点改写成极限，再判断极限是否有限。"),
+    "rectangular_double_integral": ("矩形区域二重积分", "把矩形区域上的二重积分写成累次积分，一层一层累积曲面高度。"),
+    "polar_area_formula": ("极坐标面积公式", "把极坐标曲线围成的区域看成许多薄扇形，面积微元是 \\(\\frac12r^2\\,d\\theta\\)。"),
+    "polar_double_jacobian": ("极坐标二重积分：雅可比因子 r", "极坐标面积微元是 \\(dA=r\\,dr\\,d\\theta\\)，所以被积函数必须乘上 \\(r\\)。"),
+    "fundamental_theorem": ("微积分基本定理", "右侧推导实际采用的是：先找原函数，再代入上下限计算净累积量。"),
+    "generic_antiderivative": ("不定积分：按结构选求积技巧", "不定积分和定积分的方法选择相同；右侧暂时只完成了原函数结果展示，不代上下限并加 \\(C\\)。"),
 }
 
 
@@ -1438,6 +1462,36 @@ def localize_problem_item(problem_item: dict[str, Any], language: str) -> dict[s
     return localized
 
 
+def method_from_algebra(algebra: dict[str, Any], language: str) -> tuple[str, str]:
+    if not algebra.get("available"):
+        if language == "en-US":
+            return (
+                "Symbolic computation with numerical verification",
+                "This problem has not been matched to a reliable full derivation template, so the system does not label it as a specific technique.",
+            )
+        return (
+            "符号计算 + 数值核验",
+            "这个题型暂时没有匹配到可靠的完整代数推导模板，因此系统不会把它标成某个具体技巧。",
+        )
+
+    recipe_id = str(algebra.get("recipe_id", ""))
+    if language == "en-US":
+        return METHOD_ENGLISH.get(
+            recipe_id,
+            (
+                "Symbolic computation with numerical verification",
+                "The displayed method is taken from the same derivation recipe used by the algebra steps.",
+            ),
+        )
+    return METHOD_CHINESE.get(
+        recipe_id,
+        (
+            "符号计算 + 数值核验",
+            "方法概述来自右侧实际使用的代数推导配方，避免和推导过程不一致。",
+        ),
+    )
+
+
 def identify_solution_method(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any]) -> tuple[str, str]:
     mode = integration.get("mode")
     if mode == "polar_area":
@@ -1469,13 +1523,27 @@ def identify_solution_method(request: dict[str, Any], expr: sp.Expr, integration
     return "定积分：符号计算 + 数值核验", "先尝试精确积分，再用数值积分和图像检查答案大小。"
 
 
-def solve_steps(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any], method: str) -> list[str]:
+def solve_steps(
+    request: dict[str, Any],
+    expr: sp.Expr,
+    integration: dict[str, Any],
+    method: str,
+    algebra: dict[str, Any] | None = None,
+) -> list[str]:
     mode = integration.get("mode")
     statement = solve_statement_latex(request, integration)
     final = result_latex(integration)
     steps: list[str] = [f"题目写作：\\({statement}\\)。", f"方法判断：{method}。"]
 
-    if mode == "polar_area":
+    if algebra and algebra.get("available"):
+        formula_titles = [str(card.get("title", "")) for card in algebra.get("formula_cards", []) if card.get("title")]
+        if formula_titles:
+            steps.append("右侧代数推导使用的公式：" + "、".join(formula_titles) + "。")
+        reasoning = [str(item) for item in algebra.get("reasoning_steps", []) if item]
+        steps.extend(reasoning)
+        if algebra.get("verified"):
+            steps.append("这条代数推导已经和后端符号/数值结果核验一致。")
+    elif mode == "polar_area":
         bounds = integration.get("bounds", {})
         polar = integration.get("polar", {})
         steps.append(
@@ -1592,7 +1660,6 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
             }, language)
 
         expr = parse_math(str(request.get("expression", "")))
-        method, explanation = identify_solution_method(request, expr, integration)
         statement = solve_statement_latex(request, integration)
         algebra = algebra_steps.build_algebra_steps(
             request=request,
@@ -1605,6 +1672,7 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
             r=r,
             theta=theta,
         )
+        method, explanation = method_from_algebra(algebra, language)
         return localize_solution_payload({
             **integration,
             "problem_type": integration.get("mode"),
@@ -1612,7 +1680,7 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
             "method_explanation": explanation,
             "statement_latex": statement,
             "result_latex": result_latex(integration),
-            "steps": solve_steps(request, expr, integration, method),
+            "steps": solve_steps(request, expr, integration, method, algebra),
             "algebra_steps": algebra,
         }, language)
     except Exception as exc:
@@ -1637,6 +1705,25 @@ def make_error_response(exc: Exception) -> dict[str, Any]:
         "error": str(exc),
         "trace": traceback.format_exc(limit=2) if os.environ.get("CALCULUS_DEBUG") else None,
     }
+
+
+def expected_recipes_for_problem(problem_item: dict[str, Any]) -> set[str]:
+    title = str(problem_item.get("title", ""))
+    mode = str(problem_item.get("mode", ""))
+    expected: set[str] = set()
+    if "分部积分" in title or "乘积型对数积分" in title:
+        expected.add("integration_by_parts")
+    if "指数与三角乘积" in title or "指数三角乘积" in title:
+        expected.add("repeated_integration_by_parts")
+    if any(keyword in title for keyword in ("三角平方", "余弦平方", "三角平方面积", "余弦平方面积")):
+        expected.add("trig_power_reduction")
+    if mode == "polar_area":
+        expected.add("polar_area_formula")
+    elif mode == "polar_double":
+        expected.add("polar_double_jacobian")
+    elif mode == "double":
+        expected.add("rectangular_double_integral")
+    return expected
 
 
 def is_practice_solution_usable(solution: dict[str, Any]) -> bool:
@@ -1687,6 +1774,11 @@ def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
             )
             if wants_full_algebra and not solution.get("algebra_steps", {}).get("available"):
                 last_error = "generated problem did not have reliable algebra steps"
+                continue
+            expected_recipes = expected_recipes_for_problem(candidate["problem"])
+            actual_recipe = str(solution.get("algebra_steps", {}).get("recipe_id", ""))
+            if expected_recipes and actual_recipe not in expected_recipes:
+                last_error = f"generated problem expected {sorted(expected_recipes)} but got {actual_recipe}"
                 continue
 
             problem_item = {
