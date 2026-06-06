@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Calculus Studio</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
 <body>
   <div class="static-notice">
@@ -345,12 +345,15 @@
     </main>
 
     <script>
+      window.CALCULUS_API_BASE = "";
+    </script>
+    <script>
       window.MathJax = {
         tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["\\[", "\\]"]] },
         svg: { fontCache: "global" },
       };
     </script>
     <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-    <script src="/app.js"></script>
+    <script src="app.js"></script>
   </body>
 </html>

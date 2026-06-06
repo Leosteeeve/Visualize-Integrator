@@ -86,6 +86,30 @@ let lastPlot = null;
 let lastPracticeProblem = null;
 const PRACTICE_SIGNATURE_STORAGE_KEY = "calculus.practice.signatures.v1";
 
+function apiBaseUrl() {
+  const configured = window.CALCULUS_API_BASE || "";
+  const params = new URLSearchParams(window.location.search);
+  const queryApi = params.get("api");
+  if (queryApi) {
+    try {
+      window.localStorage?.setItem("calculus.apiBase", queryApi);
+    } catch {
+      // Ignore private browsing or storage-denied modes.
+    }
+    return queryApi.replace(/\/+$/, "");
+  }
+  if (configured) return String(configured).replace(/\/+$/, "");
+  try {
+    return (window.localStorage?.getItem("calculus.apiBase") || "").replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function apiUrl(path) {
+  return `${apiBaseUrl()}${path}`;
+}
+
 const quickTemplates = [
   { label: "x", insert: "x" },
   { label: "y", insert: "y" },
@@ -515,7 +539,7 @@ function payloadFromProblem(item) {
 }
 
 async function solve(payload) {
-  const response = await fetch("/api/solve", {
+  const response = await fetch(apiUrl("/api/solve"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -531,7 +555,7 @@ async function calculate() {
   setMessages([]);
   try {
     const payload = requestPayload();
-    const response = await fetch("/api/integrate", {
+    const response = await fetch(apiUrl("/api/integrate"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -766,7 +790,7 @@ async function generatePractice() {
   elements.practiceSolutionBody.innerHTML = "<p>正在从后端随机生成题目、去重并校验解答...</p>";
   elements.generatePractice.disabled = true;
   try {
-    const response = await fetch("/api/practice/generate", {
+    const response = await fetch(apiUrl("/api/practice/generate"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
