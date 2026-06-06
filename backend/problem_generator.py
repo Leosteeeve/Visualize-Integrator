@@ -138,12 +138,28 @@ def problem(
     r_lower: str | None = None,
     r_upper: str | None = None,
     target: str,
+    recipe_id: str = "auto",
+    recipe_params: dict[str, Any] | None = None,
+    method_tags: list[str] | None = None,
+    explainability: str | None = None,
 ) -> dict[str, Any]:
+    if explainability is None:
+        target_text = target + " " + expression
+        explainability = "partial" if any(word in target_text for word in ("特殊函数", "数值", "挑战", "非初等")) else "full"
     item: dict[str, Any] = {
         "title": title,
         "mode": mode,
         "expression": expression,
         "target": target,
+        "recipe": {
+            "recipe_id": recipe_id,
+            "recipe_params": recipe_params or {},
+            "method_tags": method_tags or [],
+            "explainability": explainability,
+        },
+        "recipeId": recipe_id,
+        "methodTags": method_tags or [],
+        "explainability": explainability,
     }
     if mode == "double":
         item.update(
@@ -182,6 +198,7 @@ def payload_for(problem_item: dict[str, Any]) -> dict[str, Any]:
         "mode": problem_item["mode"],
         "expression": problem_item["expression"],
         "epsilon": 1e-8,
+        "recipe": problem_item.get("recipe", {}),
     }
     if problem_item["mode"] == "double":
         payload.update(
@@ -250,6 +267,7 @@ def generate_candidate(kind: str, level: str, rng: random.Random) -> dict[str, A
             "levelLabel": LEVEL_LABELS[level],
         }
     )
+    problem_item.setdefault("recipe", {}).update({"family_id": family.family_id, "kind": kind, "level": level})
     signature = signature_for(problem_item, kind, level)
     return {
         "problem": problem_item,

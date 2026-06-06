@@ -29,6 +29,7 @@ try:
 except Exception:  # pragma: no cover - SciPy is optional at runtime.
     scipy_integrate = None
 
+import algebra_steps
 import problem_generator
 
 
@@ -1433,6 +1434,17 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
             "statement_latex": statement,
             "result_latex": result_latex(integration),
             "steps": solve_steps(request, expr, integration, method),
+            "algebra_steps": algebra_steps.build_algebra_steps(
+                request=request,
+                expr=expr,
+                integration=integration,
+                statement_latex=statement,
+                final_latex=result_latex(integration),
+                x=x,
+                y=y,
+                r=r,
+                theta=theta,
+            ),
         }
     except Exception as exc:
         return {
@@ -1496,6 +1508,13 @@ def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
             solution = solve_payload(candidate["payload"])
             if not is_practice_solution_usable(solution):
                 last_error = solution.get("error") or "solution did not pass practice validation"
+                continue
+            wants_full_algebra = (
+                candidate["problem"].get("explainability") == "full"
+                and level in {"easy", "ap", "advanced"}
+            )
+            if wants_full_algebra and not solution.get("algebra_steps", {}).get("available"):
+                last_error = "generated problem did not have reliable algebra steps"
                 continue
 
             problem_item = {

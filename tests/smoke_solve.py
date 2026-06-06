@@ -19,7 +19,28 @@ def main():
     check(
         "definite power",
         {"mode": "definite", "expression": "x^2", "lower": "0", "upper": "1"},
-        lambda r: r["ok"] and r["result_latex"] == r"\frac{1}{3}" and len(r["steps"]) >= 3,
+        lambda r: r["ok"]
+        and r["result_latex"] == r"\frac{1}{3}"
+        and len(r["steps"]) >= 3
+        and r["algebra_steps"]["available"],
+    )
+    check(
+        "algebra u substitution",
+        {"mode": "definite", "expression": "cos(x)^5*sin(x)", "lower": "0", "upper": "pi/2"},
+        lambda r: r["ok"]
+        and r["algebra_steps"]["available"]
+        and r["algebra_steps"]["recipe_id"] == "u_sub_cos_power_sin"
+        and r"\int_{0}^{1}u^{5}" in r["algebra_steps"]["latex"]
+        and r["result_latex"] == r"\frac{1}{6}",
+    )
+    check(
+        "algebra trig absolute split",
+        {"mode": "definite", "expression": "sqrt(sin(x)^3-sin(x)^5)", "lower": "0", "upper": "pi"},
+        lambda r: r["ok"]
+        and r["algebra_steps"]["available"]
+        and r["algebra_steps"]["recipe_id"] == "trig_identity_abs_piecewise"
+        and r"\frac45" in r["algebra_steps"]["latex"]
+        and len(r["algebra_steps"]["notes"]) == 2,
     )
     check(
         "improper convergent",

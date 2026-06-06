@@ -43,6 +43,8 @@ def main():
                 signature = result["signature"]
                 expect(f"{kind}/{level}/{index} unique in pair", signature not in pair_seen)
                 expect(f"{kind}/{level}/{index} solution ok", result["solution"]["ok"])
+                expect(f"{kind}/{level}/{index} recipe metadata", bool(result["problem"].get("recipe")))
+                expect(f"{kind}/{level}/{index} algebra field", "algebra_steps" in result["solution"])
                 pair_seen.add(signature)
                 seen.add(signature)
 

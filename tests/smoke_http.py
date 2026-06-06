@@ -34,7 +34,10 @@ def main():
         "/api/solve",
         {"mode": "definite", "expression": "x^2", "lower": "0", "upper": "1"},
     )
-    expect("http definite solve", definite["ok"] and definite["result_latex"] == r"\frac{1}{3}")
+    expect(
+        "http definite solve",
+        definite["ok"] and definite["result_latex"] == r"\frac{1}{3}" and definite["algebra_steps"]["available"],
+    )
 
     double = post_json(
         "/api/solve",
@@ -62,7 +65,10 @@ def main():
         "/api/practice/generate",
         {"kind": "definite", "level": "easy", "seed": "http-practice"},
     )
-    expect("http practice generate", practice["ok"] and practice["solution"]["ok"] and practice["signature"])
+    expect(
+        "http practice generate",
+        practice["ok"] and practice["solution"]["ok"] and practice["signature"] and "algebra_steps" in practice["solution"],
+    )
 
     practice_next = post_json(
         "/api/practice/generate",

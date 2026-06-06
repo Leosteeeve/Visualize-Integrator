@@ -581,6 +581,19 @@ select {
   line-height: 1.7;
 }
 
+.algebra-box {
+  border-color: rgba(11, 122, 117, 0.28);
+  background: #f6fbfa;
+}
+
+.algebra-box p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
 .example-list {
   display: grid;
   gap: 10px;

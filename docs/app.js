@@ -662,14 +662,32 @@ function statusLabel(status) {
 function renderSolution(containerTitle, containerBody, payload, title = "解答") {
   containerTitle.textContent = title;
   const steps = (payload.steps || []).map((step) => `<li>${step}</li>`).join("");
+  const algebra = payload.algebra_steps || {};
+  const algebraNotes = (algebra.notes || []).map((note) => `<li>${note}</li>`).join("");
+  const algebraHtml = algebra.available
+    ? `
+      <div class="formula-box algebra-box">
+        <p><strong>代数推导：</strong><span class="tag">${algebraLabel(algebra.explainability)}</span></p>
+        \\[${algebra.latex || ""}\\]
+        ${algebraNotes ? `<ul class="symbol-list">${algebraNotes}</ul>` : ""}
+      </div>
+    `
+    : algebra.reason
+      ? `<div class="message">${algebra.reason}</div>`
+      : "";
   containerBody.innerHTML = `
     <div class="formula-box">\\[${payload.statement_latex || ""}\\]</div>
     <p><strong>推荐方法：</strong>${payload.method || "符号计算 + 数值核验"}</p>
     <p>${payload.method_explanation || ""}</p>
+    ${algebraHtml}
     <ol>${steps}</ol>
     <div class="solution-result">答案：\\(${payload.result_latex || "-"}\\)</div>
   `;
   typesetMath();
+}
+
+function algebraLabel(value) {
+  return { full: "完整推导", partial: "部分推导", "result-only": "结果校验" }[value] || value || "推导";
 }
 
 function applyProblem(item) {
