@@ -38,6 +38,8 @@
               <button class="segment" data-mode="indefinite" type="button">不定积分</button>
               <button class="segment" data-mode="improper" type="button">反常积分</button>
               <button class="segment" data-mode="double" type="button">二重积分</button>
+              <button class="segment" data-mode="polar_area" type="button">极坐标面积</button>
+              <button class="segment" data-mode="polar_double" type="button">极坐标二重</button>
             </div>
           </div>
 
@@ -74,6 +76,30 @@
               <label for="yUpper">y 上限</label>
               <input id="yUpper" spellcheck="false" autocomplete="off" value="1" />
             </div>
+          </div>
+
+          <div class="polar-bounds-grid" id="polarBoundsGrid">
+            <div class="field-group polar-area-field">
+              <label for="innerExpression">内半径 r_in(theta)</label>
+              <input id="innerExpression" spellcheck="false" autocomplete="off" value="0" />
+            </div>
+            <div class="field-group polar-double-field">
+              <label for="rLower">r 下限</label>
+              <input id="rLower" spellcheck="false" autocomplete="off" value="0" />
+            </div>
+            <div class="field-group polar-double-field">
+              <label for="rUpper">r 上限</label>
+              <input id="rUpper" spellcheck="false" autocomplete="off" value="1" />
+            </div>
+            <div class="field-group">
+              <label for="thetaLower">theta 下限</label>
+              <input id="thetaLower" spellcheck="false" autocomplete="off" value="0" />
+            </div>
+            <div class="field-group">
+              <label for="thetaUpper">theta 上限</label>
+              <input id="thetaUpper" spellcheck="false" autocomplete="off" value="2*pi" />
+            </div>
+            <p class="field-help">极坐标请使用 theta 表示角度，r 表示极径。</p>
           </div>
 
           <div class="field-group">
@@ -180,6 +206,7 @@
               <option value="indefinite">不定积分</option>
               <option value="improper">反常积分</option>
               <option value="double">二重积分</option>
+              <option value="polar">极坐标积分</option>
             </select>
             <select id="practiceLevel" aria-label="难度">
               <option value="easy">简单</option>
@@ -228,10 +255,12 @@
                 <option value="indefinite">不定积分</option>
                 <option value="improper">反常积分</option>
                 <option value="double">二重积分</option>
+                <option value="polar_area">极坐标面积</option>
+                <option value="polar_double">极坐标二重积分</option>
               </select>
             </div>
             <div class="field-group">
-              <label for="qaExpression">函数表达式</label>
+              <label for="qaExpression" id="qaExpressionLabel">函数表达式</label>
               <input id="qaExpression" spellcheck="false" autocomplete="off" value="x^2" />
             </div>
             <div class="bounds-grid" id="qaBounds">
@@ -261,6 +290,29 @@
                 <label for="qaYUpper">y 上限</label>
                 <input id="qaYUpper" spellcheck="false" autocomplete="off" value="1" />
               </div>
+            </div>
+            <div class="polar-bounds-grid" id="qaPolarBounds">
+              <div class="field-group qa-polar-area-field">
+                <label for="qaInnerExpression">内半径 r_in(theta)</label>
+                <input id="qaInnerExpression" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group qa-polar-double-field">
+                <label for="qaRLower">r 下限</label>
+                <input id="qaRLower" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group qa-polar-double-field">
+                <label for="qaRUpper">r 上限</label>
+                <input id="qaRUpper" spellcheck="false" autocomplete="off" value="1" />
+              </div>
+              <div class="field-group">
+                <label for="qaThetaLower">theta 下限</label>
+                <input id="qaThetaLower" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <div class="field-group">
+                <label for="qaThetaUpper">theta 上限</label>
+                <input id="qaThetaUpper" spellcheck="false" autocomplete="off" value="2*pi" />
+              </div>
+              <p class="field-help" id="qaPolarHelp">极坐标面积请输入外半径 r(theta)；极坐标二重积分请输入 f(r, theta)，系统会自动乘雅可比 r。</p>
             </div>
             <div class="field-group">
               <label>快速输入</label>

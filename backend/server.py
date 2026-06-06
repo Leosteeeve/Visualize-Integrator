@@ -29,6 +29,8 @@ try:
 except Exception:  # pragma: no cover - SciPy is optional at runtime.
     scipy_integrate = None
 
+import problem_generator
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web"
@@ -38,6 +40,8 @@ DEFAULT_PORT = 8000
 
 x = sp.Symbol("x", real=True)
 y = sp.Symbol("y", real=True)
+theta = sp.Symbol("theta", real=True)
+r = sp.Symbol("r", real=True)
 TRANSFORMS = standard_transformations + (convert_xor, implicit_multiplication_application)
 
 PARSE_GLOBALS = {
@@ -51,6 +55,10 @@ PARSE_GLOBALS = {
 PARSE_LOCALS = {
     "x": x,
     "y": y,
+    "r": r,
+    "theta": theta,
+    "t": theta,
+    "θ": theta,
     "pi": sp.pi,
     "π": sp.pi,
     "oo": sp.oo,
@@ -433,6 +441,183 @@ def numeric_double_with_scipy(
     }
 
 
+def numeric_polar_double_with_scipy(
+    integrand: sp.Expr,
+    r_lower_expr: sp.Expr,
+    r_upper_expr: sp.Expr,
+    theta_lower: float,
+    theta_upper: float,
+    eps: float,
+) -> dict[str, Any]:
+    if scipy_integrate is None:
+        raise RuntimeError("SciPy is required for polar integration with variable radial bounds")
+
+    theta_sign = 1.0
+    if theta_upper < theta_lower:
+        theta_lower, theta_upper = theta_upper, theta_lower
+        theta_sign *= -1.0
+
+    integrand_fn = sp.lambdify((r, theta), integrand, modules=["math"])
+    r_lower_fn = sp.lambdify(theta, r_lower_expr, modules=["math"])
+    r_upper_fn = sp.lambdify(theta, r_upper_expr, modules=["math"])
+
+    def clean(value: Any, name: str) -> float:
+        if isinstance(value, complex):
+            if abs(value.imag) > 1e-10:
+                raise ValueError(f"{name} returned a complex value")
+            value = value.real
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ValueError(f"{name} returned a non-finite value")
+        return numeric
+
+    def wrapped(r_value: float, theta_value: float) -> float:
+        return clean(integrand_fn(r_value, theta_value), "Integrand")
+
+    def lower(theta_value: float) -> float:
+        return clean(r_lower_fn(theta_value), "Lower radius")
+
+    def upper(theta_value: float) -> float:
+        return clean(r_upper_fn(theta_value), "Upper radius")
+
+    value, error = scipy_integrate.dblquad(
+        wrapped,
+        theta_lower,
+        theta_upper,
+        lower,
+        upper,
+        epsabs=eps,
+        epsrel=eps,
+    )
+    return {
+        "ok": True,
+        "value": theta_sign * value,
+        "estimated_error": abs(error),
+        "evaluations": None,
+        "method": "polar_dblquad_scipy",
+        "engine": "python_scipy",
+    }
+
+
+def sample_polar_area(
+    outer_expr: sp.Expr,
+    inner_expr: sp.Expr,
+    theta_lower: float,
+    theta_upper: float,
+) -> dict[str, Any]:
+    outer_fn = sp.lambdify(theta, outer_expr, modules=["math"])
+    inner_fn = sp.lambdify(theta, inner_expr, modules=["math"])
+    theta_min, theta_max = sorted((theta_lower, theta_upper))
+    if theta_min == theta_max:
+        theta_max = theta_min + 2 * math.pi
+
+    count = 420
+    outer_points: list[dict[str, float | None]] = []
+    inner_points: list[dict[str, float | None]] = []
+    finite_radii: list[float] = []
+
+    def sample_radius(fn: Any, angle: float) -> tuple[float | None, float | None, float | None]:
+        try:
+            raw = fn(angle)
+            if isinstance(raw, complex):
+                raw = raw.real if abs(raw.imag) <= 1e-10 else math.nan
+            radius = float(raw)
+            if not math.isfinite(radius):
+                return None, None, None
+            finite_radii.append(abs(radius))
+            return radius, radius * math.cos(angle), radius * math.sin(angle)
+        except Exception:
+            return None, None, None
+
+    for index in range(count):
+        portion = index / (count - 1)
+        angle = theta_min + (theta_max - theta_min) * portion
+        outer_radius, outer_x, outer_y = sample_radius(outer_fn, angle)
+        inner_radius, inner_x, inner_y = sample_radius(inner_fn, angle)
+        outer_points.append({"theta": angle, "r": outer_radius, "x": outer_x, "y": outer_y})
+        inner_points.append({"theta": angle, "r": inner_radius, "x": inner_x, "y": inner_y})
+
+    r_max = max(finite_radii) if finite_radii else 1.0
+    if r_max <= 0:
+        r_max = 1.0
+
+    return {
+        "kind": "polar_area",
+        "thetaMin": theta_min,
+        "thetaMax": theta_max,
+        "rMax": r_max,
+        "outer": outer_points,
+        "inner": inner_points,
+    }
+
+
+def sample_polar_surface(
+    expr: sp.Expr,
+    r_lower_expr: sp.Expr,
+    r_upper_expr: sp.Expr,
+    theta_lower: float,
+    theta_upper: float,
+) -> dict[str, Any]:
+    base = sample_polar_area(r_upper_expr, r_lower_expr, theta_lower, theta_upper)
+    expr_fn = sp.lambdify((r, theta), expr, modules=["math"])
+    lower_fn = sp.lambdify(theta, r_lower_expr, modules=["math"])
+    upper_fn = sp.lambdify(theta, r_upper_expr, modules=["math"])
+    theta_min, theta_max = base["thetaMin"], base["thetaMax"]
+
+    rows: list[list[dict[str, float | None]]] = []
+    finite_z: list[float] = []
+    theta_count = 32
+    r_count = 22
+    for ti in range(theta_count):
+        theta_portion = ti / (theta_count - 1)
+        angle = theta_min + (theta_max - theta_min) * theta_portion
+        try:
+            r_low = float(lower_fn(angle))
+            r_high = float(upper_fn(angle))
+        except Exception:
+            r_low, r_high = 0.0, 0.0
+        row: list[dict[str, float | None]] = []
+        for ri in range(r_count):
+            r_portion = ri / (r_count - 1)
+            radius = r_low + (r_high - r_low) * r_portion
+            try:
+                raw = expr_fn(radius, angle)
+                if isinstance(raw, complex):
+                    raw = raw.real if abs(raw.imag) <= 1e-10 else math.nan
+                z_value = float(raw)
+                z_value = z_value if math.isfinite(z_value) else None
+            except Exception:
+                z_value = None
+            if z_value is not None:
+                finite_z.append(z_value)
+            row.append(
+                {
+                    "theta": angle,
+                    "r": radius,
+                    "x": radius * math.cos(angle),
+                    "y": radius * math.sin(angle),
+                    "z": z_value,
+                }
+            )
+        rows.append(row)
+
+    if finite_z:
+        z_min, z_max = min(finite_z), max(finite_z)
+        if z_min == z_max:
+            z_min -= 1.0
+            z_max += 1.0
+    else:
+        z_min, z_max = -1.0, 1.0
+
+    return {
+        **base,
+        "kind": "polar_surface",
+        "rows": rows,
+        "zMin": z_min,
+        "zMax": z_max,
+    }
+
+
 def sample_function(expr: sp.Expr, lower: float | None, upper: float | None) -> dict[str, Any]:
     fn = sp.lambdify(x, expr, modules=["math"])
     left_tail = False
@@ -638,14 +823,182 @@ def integrate_double_payload(
     return response
 
 
+def ensure_symbols(expr: sp.Expr, allowed: set[sp.Symbol], label: str) -> None:
+    extra = expr.free_symbols - allowed
+    if extra:
+        names = ", ".join(sorted(str(symbol) for symbol in extra))
+        allowed_names = ", ".join(sorted(str(symbol) for symbol in allowed))
+        raise ValueError(f"{label} only supports variables {allowed_names}. Unknown: {names}")
+
+
+def integrate_polar_area_payload(
+    outer_expr: sp.Expr,
+    request: dict[str, Any],
+    warnings: list[str],
+    response: dict[str, Any],
+) -> dict[str, Any]:
+    ensure_symbols(outer_expr, {theta}, "Polar radius")
+    inner_expr = parse_math(str(request.get("innerExpression", request.get("inner", "0")) or "0"))
+    ensure_symbols(inner_expr, {theta}, "Inner polar radius")
+
+    theta_lower_expr = parse_math(str(request.get("thetaLower", request.get("lower", "0"))))
+    theta_upper_expr = parse_math(str(request.get("thetaUpper", request.get("upper", "2*pi"))))
+    theta_lower = finite_float(theta_lower_expr)
+    theta_upper = finite_float(theta_upper_expr)
+    eps = float(request.get("epsilon", 1e-8))
+
+    area_integrand = sp.simplify(sp.Rational(1, 2) * (outer_expr**2 - inner_expr**2))
+    response["bounds"] = {
+        "theta_lower": str(theta_lower_expr),
+        "theta_upper": str(theta_upper_expr),
+        "theta_lower_latex": safe_latex(theta_lower_expr),
+        "theta_upper_latex": safe_latex(theta_upper_expr),
+        "theta_lower_float": theta_lower,
+        "theta_upper_float": theta_upper,
+    }
+    response["polar"] = {
+        "type": "area",
+        "outer": str(outer_expr),
+        "inner": str(inner_expr),
+        "outer_latex": safe_latex(outer_expr),
+        "inner_latex": safe_latex(inner_expr),
+        "integrand": str(area_integrand),
+        "integrand_latex": safe_latex(area_integrand),
+        "region_text": f"theta in [{theta_lower_expr}, {theta_upper_expr}], r between {inner_expr} and {outer_expr}",
+    }
+
+    antiderivative = sp.integrate(area_integrand, theta)
+    if not has_unevaluated_integral(antiderivative):
+        antiderivative = sp.simplify(antiderivative)
+        response["antiderivative"] = {
+            "available": True,
+            "text": str(antiderivative),
+            "latex": safe_latex(antiderivative),
+            "verified": sp.simplify(sp.diff(antiderivative, theta) - area_integrand) == 0,
+        }
+    else:
+        response["antiderivative"] = {"available": False}
+
+    exact = sp.integrate(area_integrand, (theta, theta_lower_expr, theta_upper_expr))
+    if not has_unevaluated_integral(exact):
+        exact = sp.simplify(exact)
+        response["exact"] = {
+            "available": True,
+            "text": str(exact),
+            "latex": safe_latex(exact),
+            "numeric": safe_numeric_value(exact) if exact.is_real is not False else None,
+        }
+    else:
+        response["exact"] = {"available": False}
+
+    numeric = numeric_with_cpp(area_integrand.subs(theta, x), theta_lower, theta_upper, eps, warnings)
+    if numeric is None:
+        numeric = numeric_with_scipy(area_integrand.subs(theta, x), theta_lower, theta_upper, eps, [])
+        if numeric.get("integration_warnings"):
+            warnings.extend(numeric["integration_warnings"])
+    response["numeric"] = numeric
+    response["plot"] = sample_polar_area(outer_expr, inner_expr, theta_lower, theta_upper)
+    return response
+
+
+def integrate_polar_double_payload(
+    expr: sp.Expr,
+    request: dict[str, Any],
+    warnings: list[str],
+    response: dict[str, Any],
+) -> dict[str, Any]:
+    ensure_symbols(expr, {r, theta}, "Polar integrand")
+    r_lower_expr = parse_math(str(request.get("rLower", "0")))
+    r_upper_expr = parse_math(str(request.get("rUpper", "1")))
+    ensure_symbols(r_lower_expr, {theta}, "Lower polar radius")
+    ensure_symbols(r_upper_expr, {theta}, "Upper polar radius")
+
+    theta_lower_expr = parse_math(str(request.get("thetaLower", request.get("lower", "0"))))
+    theta_upper_expr = parse_math(str(request.get("thetaUpper", request.get("upper", "2*pi"))))
+    theta_lower = finite_float(theta_lower_expr)
+    theta_upper = finite_float(theta_upper_expr)
+    eps = float(request.get("epsilon", 1e-8))
+    integrand = sp.simplify(expr * r)
+
+    response["bounds"] = {
+        "theta_lower": str(theta_lower_expr),
+        "theta_upper": str(theta_upper_expr),
+        "r_lower": str(r_lower_expr),
+        "r_upper": str(r_upper_expr),
+        "theta_lower_latex": safe_latex(theta_lower_expr),
+        "theta_upper_latex": safe_latex(theta_upper_expr),
+        "r_lower_latex": safe_latex(r_lower_expr),
+        "r_upper_latex": safe_latex(r_upper_expr),
+        "theta_lower_float": theta_lower,
+        "theta_upper_float": theta_upper,
+    }
+    response["polar"] = {
+        "type": "double",
+        "integrand_without_jacobian": str(expr),
+        "integrand_with_jacobian": str(integrand),
+        "integrand_with_jacobian_latex": safe_latex(integrand),
+        "region_text": f"theta in [{theta_lower_expr}, {theta_upper_expr}], r in [{r_lower_expr}, {r_upper_expr}]",
+        "jacobian": "r",
+    }
+    response["antiderivative"] = {"available": False}
+
+    exact = sp.integrate(integrand, (r, r_lower_expr, r_upper_expr), (theta, theta_lower_expr, theta_upper_expr))
+    if not has_unevaluated_integral(exact):
+        exact = sp.simplify(exact)
+        response["exact"] = {
+            "available": True,
+            "text": str(exact),
+            "latex": safe_latex(exact),
+            "numeric": safe_numeric_value(exact) if exact.is_real is not False else None,
+        }
+    else:
+        response["exact"] = {"available": False}
+
+    numeric = None
+    if not r_lower_expr.has(theta) and not r_upper_expr.has(theta):
+        try:
+            r_lower_float = finite_float(r_lower_expr)
+            r_upper_float = finite_float(r_upper_expr)
+            numeric = numeric_double_with_cpp(
+                integrand.subs({theta: x, r: y}),
+                theta_lower,
+                theta_upper,
+                r_lower_float,
+                r_upper_float,
+                eps,
+                warnings,
+            )
+        except Exception as exc:
+            warnings.append(f"Polar C++ numeric path skipped: {exc}")
+    if numeric is None:
+        numeric = numeric_polar_double_with_scipy(integrand, r_lower_expr, r_upper_expr, theta_lower, theta_upper, eps)
+    response["numeric"] = numeric
+    response["plot"] = sample_polar_surface(expr, r_lower_expr, r_upper_expr, theta_lower, theta_upper)
+    return response
+
+
 def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
     mode = str(request.get("mode", "definite"))
     expr = parse_math(str(request.get("expression", "")))
     free_symbols = expr.free_symbols
-    allowed_symbols = {x, y} if mode == "double" else {x}
+    if mode == "double":
+        allowed_symbols = {x, y}
+    elif mode == "polar_area":
+        allowed_symbols = {theta}
+    elif mode == "polar_double":
+        allowed_symbols = {r, theta}
+    else:
+        allowed_symbols = {x}
     if free_symbols - allowed_symbols:
         names = ", ".join(sorted(str(symbol) for symbol in free_symbols - allowed_symbols))
-        allowed_names = "x and y" if mode == "double" else "x"
+        if mode == "double":
+            allowed_names = "x and y"
+        elif mode == "polar_area":
+            allowed_names = "theta"
+        elif mode == "polar_double":
+            allowed_names = "r and theta"
+        else:
+            allowed_names = "x"
         raise ValueError(f"Only the variable {allowed_names} is supported in this mode. Unknown: {names}")
 
     warnings: list[str] = []
@@ -659,6 +1012,10 @@ def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
 
     if mode == "double":
         return integrate_double_payload(expr, request, warnings, response)
+    if mode == "polar_area":
+        return integrate_polar_area_payload(expr, request, warnings, response)
+    if mode == "polar_double":
+        return integrate_polar_double_payload(expr, request, warnings, response)
 
     antiderivative = sp.integrate(expr, x)
     if not has_unevaluated_integral(antiderivative):
@@ -771,6 +1128,21 @@ def apply_raw_integral(request: dict[str, Any]) -> dict[str, Any]:
     if not raw:
         return request
 
+    polar_match = re.match(
+        r"^r\s*=\s*(.+?)\s*,\s*theta\s*=\s*(.+?)\.\.(.+)$",
+        raw.strip(),
+        flags=re.IGNORECASE,
+    )
+    if polar_match:
+        radius_text, lower_text, upper_text = polar_match.groups()
+        updated = dict(request)
+        updated["mode"] = "polar_area"
+        updated["expression"] = radius_text
+        updated["thetaLower"] = lower_text
+        updated["thetaUpper"] = upper_text
+        updated.setdefault("innerExpression", "0")
+        return updated
+
     spaced_single = re.match(r"^∫_([^\^]+)\^([^\s]+)\s+(.+?)\s*dx$", raw)
     if spaced_single:
         lower_text, upper_text, expression_text = spaced_single.groups()
@@ -818,6 +1190,35 @@ def solve_statement_latex(request: dict[str, Any], integration: dict[str, Any]) 
     bounds = integration.get("bounds", {})
     if mode == "indefinite":
         return f"\\int {expr_latex}\\,dx"
+    if mode == "polar_area":
+        polar = integration.get("polar", {})
+        outer = polar.get("outer_latex", expr_latex)
+        inner = polar.get("inner_latex", "0")
+        return (
+            "\\frac12\\int_{"
+            + bounds.get("theta_lower_latex", "\\alpha")
+            + "}^{"
+            + bounds.get("theta_upper_latex", "\\beta")
+            + "}\\left(("
+            + outer
+            + ")^2-("
+            + inner
+            + ")^2\\right)\\,d\\theta"
+        )
+    if mode == "polar_double":
+        return (
+            "\\int_{"
+            + bounds.get("theta_lower_latex", "\\alpha")
+            + "}^{"
+            + bounds.get("theta_upper_latex", "\\beta")
+            + "}\\int_{"
+            + bounds.get("r_lower_latex", "a")
+            + "}^{"
+            + bounds.get("r_upper_latex", "b")
+            + "} "
+            + expr_latex
+            + "\\,r\\,dr\\,d\\theta"
+        )
     if mode == "double":
         return (
             "\\int_{"
@@ -883,6 +1284,10 @@ def is_separable_xy(expr: sp.Expr) -> bool:
 
 def identify_solution_method(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any]) -> tuple[str, str]:
     mode = integration.get("mode")
+    if mode == "polar_area":
+        return "极坐标面积公式", "把极坐标曲线围成的区域看成许多很薄的扇形，面积微元是 \\(\\frac12 r^2\\,d\\theta\\)。若有内外半径，就用外半径平方减内半径平方。"
+    if mode == "polar_double":
+        return "极坐标二重积分：雅可比因子 r", "把平面微元从 \\(dx\\,dy\\) 换成极坐标时，面积微元变成 \\(r\\,dr\\,d\\theta\\)，所以被积函数必须乘上 \\(r\\)。"
     if mode == "double":
         if is_separable_xy(expr):
             return "矩形区域二重积分：可分离函数", "把曲面高度写成 x 部分和 y 部分的乘积，再把二重积分拆成两个一元积分。"
@@ -914,7 +1319,41 @@ def solve_steps(request: dict[str, Any], expr: sp.Expr, integration: dict[str, A
     final = result_latex(integration)
     steps: list[str] = [f"题目写作：\\({statement}\\)。", f"方法判断：{method}。"]
 
-    if mode == "double":
+    if mode == "polar_area":
+        bounds = integration.get("bounds", {})
+        polar = integration.get("polar", {})
+        steps.append(
+            "极坐标面积来自扇形面积微元："
+            "\\(dA=\\frac12 r^2\\,d\\theta\\)。"
+        )
+        steps.append(
+            "本题角度范围是 "
+            f"\\(\\theta\\in[{bounds.get('theta_lower_latex','\\alpha')},{bounds.get('theta_upper_latex','\\beta')}]\\)，"
+            f"外半径 \\(r_{{out}}={polar.get('outer_latex','r(\\theta)')}\\)，"
+            f"内半径 \\(r_{{in}}={polar.get('inner_latex','0')}\\)。"
+        )
+        steps.append(
+            "代入公式："
+            f"\\(A=\\frac12\\int (r_{{out}}^2-r_{{in}}^2)\\,d\\theta"
+            f"=\\int {polar.get('integrand_latex','')}\\,d\\theta\\)。"
+        )
+    elif mode == "polar_double":
+        bounds = integration.get("bounds", {})
+        polar = integration.get("polar", {})
+        steps.append(
+            "极坐标二重积分的面积微元是 "
+            "\\(dA=r\\,dr\\,d\\theta\\)，这个 \\(r\\) 是坐标变换的雅可比因子。"
+        )
+        steps.append(
+            "积分区域写作 "
+            f"\\(\\theta\\in[{bounds.get('theta_lower_latex','\\alpha')},{bounds.get('theta_upper_latex','\\beta')}],"
+            f"r\\in[{bounds.get('r_lower_latex','a')},{bounds.get('r_upper_latex','b')}]\\)。"
+        )
+        steps.append(
+            "所以实际计算的被积函数是 "
+            f"\\({polar.get('integrand_with_jacobian_latex','f(r,\\theta)r')}\\)。"
+        )
+    elif mode == "double":
         bounds = integration.get("bounds", {})
         steps.append(
             "区域是矩形："
@@ -1018,6 +1457,77 @@ def make_error_response(exc: Exception) -> dict[str, Any]:
     }
 
 
+def is_practice_solution_usable(solution: dict[str, Any]) -> bool:
+    if not solution.get("ok"):
+        return False
+    if not solution.get("result_latex"):
+        return False
+
+    mode = solution.get("mode")
+    if mode == "indefinite":
+        return bool(solution.get("antiderivative", {}).get("available"))
+    if mode == "improper":
+        status = solution.get("improper", {}).get("status")
+        if status == "divergent":
+            return True
+        return bool(solution.get("exact", {}).get("available") or solution.get("numeric", {}).get("value") is not None)
+    if mode in {"definite", "double", "polar_area", "polar_double"}:
+        return bool(solution.get("exact", {}).get("available") or solution.get("numeric", {}).get("value") is not None)
+    return False
+
+
+def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
+    try:
+        kind = str(request.get("kind", "definite"))
+        level = str(request.get("level", "easy"))
+        seed = problem_generator.make_seed(request.get("seed"))
+        rng = problem_generator.make_rng(seed)
+        raw_avoid = request.get("avoid_signatures", [])
+        avoid_signatures = {str(item) for item in raw_avoid if item}
+        max_attempts = min(max(int(request.get("max_attempts", 120)), 1), 500)
+        last_error = ""
+
+        for attempt in range(1, max_attempts + 1):
+            candidate = problem_generator.generate_candidate(kind, level, rng)
+            if candidate["signature"] in avoid_signatures:
+                last_error = "generated duplicate signature"
+                continue
+
+            solution = solve_payload(candidate["payload"])
+            if not is_practice_solution_usable(solution):
+                last_error = solution.get("error") or "solution did not pass practice validation"
+                continue
+
+            problem_item = {
+                **candidate["problem"],
+                "signature": candidate["signature"],
+                "familyId": candidate["family_id"],
+                "concepts": candidate["concepts"],
+            }
+            return {
+                "ok": True,
+                "problem": problem_item,
+                "solution": solution,
+                "signature": candidate["signature"],
+                "family_id": candidate["family_id"],
+                "concepts": candidate["concepts"],
+                "seed": seed,
+                "attempts": attempt,
+                "capacity_estimate": problem_generator.total_capacity(kind, level),
+                "source": "local-generator",
+            }
+
+        return {
+            "ok": False,
+            "error": f"Could not generate a validated practice problem after {max_attempts} attempts. Last error: {last_error}",
+            "kind": kind,
+            "level": level,
+            "seed": seed,
+        }
+    except Exception as exc:
+        return make_error_response(exc)
+
+
 class CalculusHandler(BaseHTTPRequestHandler):
     server_version = "CalculusMVP/0.1"
 
@@ -1048,7 +1558,7 @@ class CalculusHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path not in {"/api/integrate", "/api/solve"}:
+        if parsed.path not in {"/api/integrate", "/api/solve", "/api/practice/generate"}:
             self.send_error(404)
             return
 
@@ -1056,7 +1566,12 @@ class CalculusHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length)
             request = json.loads(body.decode("utf-8"))
-            response = solve_payload(request) if parsed.path == "/api/solve" else integrate_payload(request)
+            if parsed.path == "/api/solve":
+                response = solve_payload(request)
+            elif parsed.path == "/api/practice/generate":
+                response = generate_practice_payload(request)
+            else:
+                response = integrate_payload(request)
             self.send_json(200, response)
         except Exception as exc:
             self.send_json(400, make_error_response(exc))

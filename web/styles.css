@@ -204,7 +204,7 @@ input:focus {
 
 .segmented {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   border: 1px solid #c8d2d7;
   border-radius: 7px;
@@ -228,14 +228,24 @@ input:focus {
 }
 
 .bounds-grid,
-.double-bounds-grid {
+.double-bounds-grid,
+.polar-bounds-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
-.double-bounds-grid {
+.double-bounds-grid,
+.polar-bounds-grid {
   display: none;
+}
+
+.field-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #52666d;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .palette,
@@ -582,6 +592,13 @@ select {
   overflow-wrap: anywhere;
 }
 
+.practice-target {
+  margin: 0;
+  color: #445a62;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .example-actions {
   display: flex;
   flex-wrap: wrap;
@@ -718,6 +735,7 @@ select {
 @media (max-width: 560px) {
   .bounds-grid,
   .double-bounds-grid,
+  .polar-bounds-grid,
   .result-panel {
     grid-template-columns: 1fr;
   }

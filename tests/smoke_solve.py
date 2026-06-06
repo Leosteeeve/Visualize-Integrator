@@ -44,9 +44,59 @@ def main():
         lambda r: r["ok"] and r["result_latex"] == r"\frac{1}{4}" and r["plot"]["kind"] == "surface",
     )
     check(
+        "polar circle area",
+        {"mode": "polar_area", "expression": "1", "thetaLower": "0", "thetaUpper": "2*pi"},
+        lambda r: r["ok"] and r["result_latex"] == r"\pi" and r["plot"]["kind"] == "polar_area",
+    )
+    check(
+        "polar sine circle area",
+        {"mode": "polar_area", "expression": "2*sin(theta)", "thetaLower": "0", "thetaUpper": "pi"},
+        lambda r: r["ok"] and r["result_latex"] == r"\pi",
+    )
+    check(
+        "polar annular sector",
+        {
+            "mode": "polar_area",
+            "expression": "2",
+            "innerExpression": "1",
+            "thetaLower": "0",
+            "thetaUpper": "pi",
+        },
+        lambda r: r["ok"] and r["result_latex"] == r"\frac{3 \pi}{2}",
+    )
+    check(
+        "polar double unit disk",
+        {
+            "mode": "polar_double",
+            "expression": "1",
+            "rLower": "0",
+            "rUpper": "1",
+            "thetaLower": "0",
+            "thetaUpper": "2*pi",
+        },
+        lambda r: r["ok"] and r["result_latex"] == r"\pi" and r["plot"]["kind"] == "polar_surface",
+    )
+    check(
+        "polar double radial square",
+        {
+            "mode": "polar_double",
+            "expression": "r^2",
+            "rLower": "0",
+            "rUpper": "1",
+            "thetaLower": "0",
+            "thetaUpper": "2*pi",
+        },
+        lambda r: r["ok"] and r["result_latex"] == r"\frac{\pi}{2}",
+    )
+    check(
         "raw definite input",
         {"raw": "\u222b_0^1 x^2 dx"},
         lambda r: r["ok"] and r["mode"] == "definite" and r["result_latex"] == r"\frac{1}{3}",
+    )
+    check(
+        "raw polar input",
+        {"raw": "r=2*sin(theta), theta=0..pi"},
+        lambda r: r["ok"] and r["mode"] == "polar_area" and r["result_latex"] == r"\pi",
     )
     check(
         "bad input",

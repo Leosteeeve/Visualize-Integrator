@@ -27,7 +27,7 @@ def main():
     with request.urlopen(BASE_URL + "/", timeout=10) as response:
         html = response.read().decode("utf-8")
 
-    for marker in ['id="lessonTabs"', 'id="practiceKind"', 'id="qaRaw"', 'id="plot"']:
+    for marker in ['id="lessonTabs"', 'id="practiceKind"', 'id="qaRaw"', 'id="plot"', 'id="polarBoundsGrid"']:
         expect(f"page marker {marker}", marker in html)
 
     definite = post_json(
@@ -51,6 +51,35 @@ def main():
 
     raw = post_json("/api/solve", {"raw": "\u222b_1^oo 1/x^2 dx"})
     expect("http raw improper solve", raw["ok"] and raw.get("improper", {}).get("status") == "convergent")
+
+    polar = post_json(
+        "/api/solve",
+        {"mode": "polar_area", "expression": "1", "thetaLower": "0", "thetaUpper": "2*pi"},
+    )
+    expect("http polar solve", polar["ok"] and polar["result_latex"] == r"\pi")
+
+    practice = post_json(
+        "/api/practice/generate",
+        {"kind": "definite", "level": "easy", "seed": "http-practice"},
+    )
+    expect("http practice generate", practice["ok"] and practice["solution"]["ok"] and practice["signature"])
+
+    practice_next = post_json(
+        "/api/practice/generate",
+        {
+            "kind": "definite",
+            "level": "easy",
+            "seed": "http-practice",
+            "avoid_signatures": [practice["signature"]],
+        },
+    )
+    expect("http practice avoid", practice_next["ok"] and practice_next["signature"] != practice["signature"])
+
+    polar_practice = post_json(
+        "/api/practice/generate",
+        {"kind": "polar", "level": "ap", "seed": "http-polar-practice"},
+    )
+    expect("http polar practice generate", polar_practice["ok"] and polar_practice["solution"]["ok"])
 
     bad = post_json(
         "/api/solve",

@@ -20,6 +20,14 @@ const elements = {
   yUpper: $("#yUpper"),
   boundsGrid: $("#boundsGrid"),
   doubleBoundsGrid: $("#doubleBoundsGrid"),
+  polarBoundsGrid: $("#polarBoundsGrid"),
+  innerExpression: $("#innerExpression"),
+  rLower: $("#rLower"),
+  rUpper: $("#rUpper"),
+  thetaLower: $("#thetaLower"),
+  thetaUpper: $("#thetaUpper"),
+  polarAreaFields: $$(".polar-area-field"),
+  polarDoubleFields: $$(".polar-double-field"),
   calculate: $("#calculate"),
   statusLine: $("#statusLine"),
   modeButtons: $$(".segment"),
@@ -50,6 +58,7 @@ const elements = {
   qaRaw: $("#qaRaw"),
   qaMode: $("#qaMode"),
   qaExpression: $("#qaExpression"),
+  qaExpressionLabel: $("#qaExpressionLabel"),
   qaLower: $("#qaLower"),
   qaUpper: $("#qaUpper"),
   qaXLower: $("#qaXLower"),
@@ -58,6 +67,14 @@ const elements = {
   qaYUpper: $("#qaYUpper"),
   qaBounds: $("#qaBounds"),
   qaDoubleBounds: $("#qaDoubleBounds"),
+  qaPolarBounds: $("#qaPolarBounds"),
+  qaInnerExpression: $("#qaInnerExpression"),
+  qaRLower: $("#qaRLower"),
+  qaRUpper: $("#qaRUpper"),
+  qaThetaLower: $("#qaThetaLower"),
+  qaThetaUpper: $("#qaThetaUpper"),
+  qaPolarAreaFields: $$(".qa-polar-area-field"),
+  qaPolarDoubleFields: $$(".qa-polar-double-field"),
   askQuestion: $("#askQuestion"),
   qaSolutionTitle: $("#qaSolutionTitle"),
   qaSolutionBody: $("#qaSolutionBody"),
@@ -67,10 +84,13 @@ let currentMode = "definite";
 let currentLesson = "zero";
 let lastPlot = null;
 let lastPracticeProblem = null;
+const PRACTICE_SIGNATURE_STORAGE_KEY = "calculus.practice.signatures.v1";
 
 const quickTemplates = [
   { label: "x", insert: "x" },
   { label: "y", insert: "y" },
+  { label: "r", insert: "r" },
+  { label: "θ", insert: "theta" },
   { label: "□²", insert: "^2" },
   { label: "√", insert: "sqrt()" },
   { label: "分数", insert: "1/()" },
@@ -178,6 +198,37 @@ const cannedProblems = {
     yLower: "-2",
     yUpper: "2",
     statement: rawMath`\int_{-2}^2\int_{-2}^2 e^{-(x^2+y^2)}\,dy\,dx`,
+  },
+  polarCircle: {
+    id: "polarCircle",
+    title: "极坐标圆面积",
+    mode: "polar_area",
+    expression: "1",
+    innerExpression: "0",
+    thetaLower: "0",
+    thetaUpper: "2*pi",
+    statement: rawMath`\frac12\int_0^{2\pi}1^2\,d\theta`,
+  },
+  polarRose: {
+    id: "polarRose",
+    title: "玫瑰线单瓣",
+    mode: "polar_area",
+    expression: "2*sin(3*theta)",
+    innerExpression: "0",
+    thetaLower: "0",
+    thetaUpper: "pi/3",
+    statement: rawMath`\frac12\int_0^{\pi/3}(2\sin 3\theta)^2\,d\theta`,
+  },
+  polarDoubleUnit: {
+    id: "polarDoubleUnit",
+    title: "极坐标二重积分",
+    mode: "polar_double",
+    expression: "1",
+    rLower: "0",
+    rUpper: "1",
+    thetaLower: "0",
+    thetaUpper: "2*pi",
+    statement: rawMath`\int_0^{2\pi}\int_0^1 r\,dr\,d\theta`,
   },
 };
 
@@ -306,113 +357,64 @@ const lessons = [
       },
     ],
   },
-];
-
-const practiceTemplates = [
   {
-    kind: "definite",
-    level: "easy",
-    make: () => {
-      const n = randInt(1, 5);
-      const b = randInt(1, 4);
-      return problem(`幂函数面积`, "definite", `x^${n}`, "0", String(b), rawMath`\int_0^${b} x^${n}\,dx`);
-    },
-  },
-  {
-    kind: "definite",
-    level: "easy",
-    make: () => problem("正弦面积", "definite", "sin(x)", "0", "pi", rawMath`\int_0^\pi\sin x\,dx`),
-  },
-  {
-    kind: "definite",
-    level: "ap",
-    make: () => problem("换元法练习", "definite", "2*x*cos(x^2)", "0", "1", rawMath`\int_0^1 2x\cos(x^2)\,dx`),
-  },
-  {
-    kind: "definite",
-    level: "advanced",
-    make: () => problem("分部积分练习", "definite", "x*exp(x)", "0", "1", rawMath`\int_0^1 xe^x\,dx`),
-  },
-  {
-    kind: "definite",
-    level: "mit",
-    make: () => problem("非初等闭式的数值窗口", "definite", "exp(-x^2)", "-2", "2", rawMath`\int_{-2}^{2}e^{-x^2}\,dx`),
-  },
-  {
-    kind: "indefinite",
-    level: "easy",
-    make: () => {
-      const n = randInt(2, 6);
-      return problem("不定积分幂函数", "indefinite", `x^${n}`, undefined, undefined, rawMath`\int x^${n}\,dx`);
-    },
-  },
-  {
-    kind: "indefinite",
-    level: "ap",
-    make: () => problem("基础三角原函数", "indefinite", "cos(x)", undefined, undefined, rawMath`\int\cos x\,dx`),
-  },
-  {
-    kind: "indefinite",
-    level: "advanced",
-    make: () => problem("分部积分原函数", "indefinite", "x*sin(x)", undefined, undefined, rawMath`\int x\sin x\,dx`),
-  },
-  {
-    kind: "indefinite",
-    level: "mit",
-    make: () => problem("符号引擎挑战", "indefinite", "exp(-x^2)", undefined, undefined, rawMath`\int e^{-x^2}\,dx`),
-  },
-  {
-    kind: "improper",
-    level: "easy",
-    make: () => problem("端点奇异", "improper", "1/sqrt(x)", "0", "1", rawMath`\int_0^1\frac1{\sqrt x}\,dx`),
-  },
-  {
-    kind: "improper",
-    level: "ap",
-    make: () => problem("p 型收敛", "improper", "1/x^2", "1", "oo", rawMath`\int_1^\infty\frac1{x^2}\,dx`),
-  },
-  {
-    kind: "improper",
-    level: "advanced",
-    make: () => problem("p 型发散", "improper", "1/x", "1", "oo", rawMath`\int_1^\infty\frac1x\,dx`),
-  },
-  {
-    kind: "improper",
-    level: "mit",
-    make: () => problem("高斯尾部", "improper", "exp(-x^2)", "-oo", "oo", rawMath`\int_{-\infty}^{\infty}e^{-x^2}\,dx`),
-  },
-  {
-    kind: "double",
-    level: "easy",
-    make: () => doubleProblem("单位正方形体积", "x*y", "0", "1", "0", "1", rawMath`\int_0^1\int_0^1xy\,dy\,dx`),
-  },
-  {
-    kind: "double",
-    level: "ap",
-    make: () => doubleProblem("抛物面体积", "x^2+y^2", "-1", "1", "-1", "1", rawMath`\int_{-1}^1\int_{-1}^1(x^2+y^2)\,dy\,dx`),
-  },
-  {
-    kind: "double",
-    level: "advanced",
-    make: () => doubleProblem("可分离波面", "sin(x)*cos(y)", "0", "pi", "0", "pi/2", rawMath`\int_0^\pi\int_0^{\pi/2}\sin x\cos y\,dy\,dx`),
-  },
-  {
-    kind: "double",
-    level: "mit",
-    make: () => doubleProblem("高斯曲面窗口", "exp(-(x^2+y^2))", "-2", "2", "-2", "2", rawMath`\int_{-2}^{2}\int_{-2}^{2}e^{-(x^2+y^2)}\,dy\,dx`),
+    id: "polar",
+    title: "4. 极坐标积分",
+    preview: "polarRose",
+    cards: [
+      {
+        title: "从直角坐标换到极坐标",
+        body: [
+          "极坐标不用 \\(x,y\\) 直接描述点，而是用半径 \\(r\\) 和角度 \\(\\theta\\)。它们和直角坐标的关系是 \\(x=r\\cos\\theta\\)、\\(y=r\\sin\\theta\\)。",
+          "当图形天然围绕原点旋转、像圆、玫瑰线、心形线或扇形时，用极坐标通常比直角坐标更直接。",
+        ],
+        formula: rawMath`\[x=r\cos\theta,\qquad y=r\sin\theta\]`,
+        symbols: ["\\(r\\)：点到原点的距离。", "\\(\\theta\\)：从正 x 轴转到这个点的角度。"],
+        examples: ["polarCircle"],
+      },
+      {
+        title: "极坐标面积为什么有二分之一",
+        body: [
+          "当角度只增加一点点 \\(d\\theta\\) 时，曲线 \\(r=f(\\theta)\\) 扫过的是很薄的扇形。扇形面积近似是 \\(\\frac12r^2d\\theta\\)。",
+          "如果区域夹在内半径和外半径之间，就用外半径平方减内半径平方。",
+        ],
+        formula: rawMath`\[A=\frac12\int_\alpha^\beta\left(r_{out}(\theta)^2-r_{in}(\theta)^2\right)d\theta\]`,
+        symbols: ["\\(r_{out}\\)：外侧曲线。", "\\(r_{in}\\)：内侧曲线，没有内曲线时就是 0。"],
+        examples: ["polarRose"],
+      },
+      {
+        title: "极坐标二重积分必须乘 r",
+        body: [
+          "二重积分里的小面积块 \\(dA\\) 换成极坐标后，不是简单的 \\(drd\\theta\\)，而是 \\(rdrd\\theta\\)。",
+          "这个额外的 \\(r\\) 来自坐标变换：离原点越远，同样的角度宽度扫出来的弧越长。",
+        ],
+        formula: rawMath`\[\iint_R f(x,y)\,dA=\int_\alpha^\beta\int_{r_{in}}^{r_{out}} f(r,\theta)\,r\,dr\,d\theta\]`,
+        symbols: ["\\(r\\,dr\\,d\\theta\\)：极坐标面积微元。", "\\(f(r,\\theta)\\)：用极坐标写出的高度或密度。"],
+        examples: ["polarDoubleUnit"],
+      },
+    ],
   },
 ];
 
-function problem(title, mode, expression, lower, upper, statement) {
-  return { title, mode, expression, lower, upper, statement };
+function loadPracticeSignatures() {
+  try {
+    const raw = window.localStorage?.getItem(PRACTICE_SIGNATURE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string").slice(0, 300) : [];
+  } catch {
+    return [];
+  }
 }
 
-function doubleProblem(title, expression, xLower, xUpper, yLower, yUpper, statement) {
-  return { title, mode: "double", expression, xLower, xUpper, yLower, yUpper, statement };
-}
-
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function rememberPracticeSignature(signature) {
+  if (!signature) return;
+  try {
+    const signatures = loadPracticeSignatures().filter((item) => item !== signature);
+    signatures.unshift(signature);
+    window.localStorage?.setItem(PRACTICE_SIGNATURE_STORAGE_KEY, JSON.stringify(signatures.slice(0, 300)));
+  } catch {
+    // Local storage is optional; generation still works without persistent de-duplication.
+  }
 }
 
 function setSection(section) {
@@ -432,12 +434,24 @@ function setSection(section) {
 
 function setMode(mode, shouldCalculate = true) {
   currentMode = mode;
+  const isDouble = mode === "double";
+  const isPolarArea = mode === "polar_area";
+  const isPolarDouble = mode === "polar_double";
+  const isPolar = isPolarArea || isPolarDouble;
   for (const button of elements.modeButtons) {
     button.classList.toggle("active", button.dataset.mode === mode);
   }
-  elements.boundsGrid.style.display = mode === "indefinite" || mode === "double" ? "none" : "grid";
-  elements.doubleBoundsGrid.style.display = mode === "double" ? "grid" : "none";
-  elements.expressionLabel.textContent = mode === "double" ? "f(x, y)" : "f(x)";
+  elements.boundsGrid.style.display = mode === "indefinite" || isDouble || isPolar ? "none" : "grid";
+  elements.doubleBoundsGrid.style.display = isDouble ? "grid" : "none";
+  elements.polarBoundsGrid.style.display = isPolar ? "grid" : "none";
+  for (const node of elements.polarAreaFields) node.style.display = isPolarArea ? "grid" : "none";
+  for (const node of elements.polarDoubleFields) node.style.display = isPolarDouble ? "grid" : "none";
+  elements.expressionLabel.textContent = isDouble ? "f(x, y)" : isPolarArea ? "r_out(theta)" : isPolarDouble ? "f(r, theta)" : "f(x)";
+  if (isPolarArea && elements.expression.value === "x^2") {
+    elements.expression.value = "2*sin(theta)";
+  } else if (isPolarDouble && elements.expression.value === "x^2") {
+    elements.expression.value = "1";
+  }
   if (shouldCalculate) {
     calculate();
   }
@@ -472,6 +486,11 @@ function requestPayload() {
     xUpper: elements.xUpper.value,
     yLower: elements.yLower.value,
     yUpper: elements.yUpper.value,
+    innerExpression: elements.innerExpression.value,
+    rLower: elements.rLower.value,
+    rUpper: elements.rUpper.value,
+    thetaLower: elements.thetaLower.value,
+    thetaUpper: elements.thetaUpper.value,
     epsilon: 1e-8,
   };
 }
@@ -486,6 +505,11 @@ function payloadFromProblem(item) {
     xUpper: item.xUpper ?? "1",
     yLower: item.yLower ?? "0",
     yUpper: item.yUpper ?? "1",
+    innerExpression: item.innerExpression ?? "0",
+    rLower: item.rLower ?? "0",
+    rUpper: item.rUpper ?? "1",
+    thetaLower: item.thetaLower ?? "0",
+    thetaUpper: item.thetaUpper ?? "2*pi",
     epsilon: 1e-8,
   };
 }
@@ -548,7 +572,14 @@ function clearResult() {
 }
 
 function renderResult(payload) {
-  elements.plotTitle.textContent = payload.mode === "double" ? `z = ${payload.expression}` : `f(x) = ${payload.expression}`;
+  elements.plotTitle.textContent =
+    payload.mode === "double"
+      ? `z = ${payload.expression}`
+      : payload.mode === "polar_area"
+        ? `r = ${payload.polar?.outer || payload.expression}`
+        : payload.mode === "polar_double"
+          ? `z = ${payload.expression}, dA = r dr dθ`
+          : `f(x) = ${payload.expression}`;
   const exact = payload.exact?.available ? payload.exact.text : "-";
   const numeric = payload.numeric?.ok !== false ? formatNumber(payload.numeric?.value) : "-";
   const error = payload.numeric?.ok !== false ? formatNumber(payload.numeric?.estimated_error) : "-";
@@ -557,7 +588,17 @@ function renderResult(payload) {
   elements.errorResult.textContent = error;
   elements.numericChip.textContent = payload.mode === "improper" ? statusLabel(payload.improper?.status) : numeric;
 
-  if (payload.mode === "double") {
+  if (payload.mode === "polar_area") {
+    elements.statusResult.textContent = "极坐标面积";
+    elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ polar" : "SciPy polar";
+    elements.fourthResultLabel.textContent = "极坐标区域";
+    elements.antiderivativeResult.textContent = payload.polar?.region_text || "r(theta)";
+  } else if (payload.mode === "polar_double") {
+    elements.statusResult.textContent = "极坐标二重积分";
+    elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ polar 2D" : "SciPy polar";
+    elements.fourthResultLabel.textContent = "极坐标区域";
+    elements.antiderivativeResult.textContent = payload.polar?.region_text || "r-theta region";
+  } else if (payload.mode === "double") {
     elements.statusResult.textContent = "二重积分";
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ 2D" : "SciPy 2D";
     elements.fourthResultLabel.textContent = "区域";
@@ -615,6 +656,11 @@ function applyProblem(item) {
   if (item.xUpper !== undefined) elements.xUpper.value = item.xUpper;
   if (item.yLower !== undefined) elements.yLower.value = item.yLower;
   if (item.yUpper !== undefined) elements.yUpper.value = item.yUpper;
+  if (item.innerExpression !== undefined) elements.innerExpression.value = item.innerExpression;
+  if (item.rLower !== undefined) elements.rLower.value = item.rLower;
+  if (item.rUpper !== undefined) elements.rUpper.value = item.rUpper;
+  if (item.thetaLower !== undefined) elements.thetaLower.value = item.thetaLower;
+  if (item.thetaUpper !== undefined) elements.thetaUpper.value = item.thetaUpper;
   setMode(item.mode, false);
 }
 
@@ -627,7 +673,7 @@ async function solveProblem(item, titleNode, bodyNode, scroll = false) {
 }
 
 function renderCommonExamples() {
-  const ids = ["powerArea", "sinArea", "pConverges", "endpoint", "doubleXY", "paraboloid"];
+  const ids = ["powerArea", "sinArea", "pConverges", "endpoint", "doubleXY", "paraboloid", "polarCircle", "polarRose"];
   elements.examples.innerHTML = ids
     .map((id) => {
       const item = cannedProblems[id];
@@ -690,10 +736,18 @@ async function drawMiniVisuals() {
   }
 }
 
-function renderPracticeProblem(item, result) {
+function renderPracticeProblem(item, result, meta = {}) {
+  const concepts = (meta.concepts || item.concepts || []).slice(0, 3);
+  const conceptTags = concepts.map((concept) => `<span class="tag">${concept}</span>`).join("");
+  const seedTag = meta.seed ? `<span class="tag">种子 ${String(meta.seed).slice(0, 8)}</span>` : "";
+  const capacityTag = meta.capacity_estimate ? `<span class="tag">候选约 ${formatNumber(meta.capacity_estimate)}</span>` : "";
   elements.practiceProblem.innerHTML = `
     <strong>${item.title}</strong>
-    <span class="tag">${kindLabel(item.mode)} · ${levelLabel(elements.practiceLevel.value)}</span>
+    <span class="tag">${kindLabel(item.mode)} · ${levelLabel(item.level || elements.practiceLevel.value)}</span>
+    ${conceptTags}
+    ${seedTag}
+    ${capacityTag}
+    <p class="practice-target">${item.target || "根据题目结构选择可靠方法，并用计算结果校验。"}</p>
     <div class="formula-box">\\[${item.statement || result.statement_latex}\\]</div>
     <div class="example-actions">
       <button class="mini-action" type="button" id="practiceVisualize">查看上方图像</button>
@@ -708,28 +762,48 @@ function renderPracticeProblem(item, result) {
 async function generatePractice() {
   const kind = elements.practiceKind.value;
   const level = elements.practiceLevel.value;
-  const candidates = practiceTemplates.filter((template) => template.kind === kind && template.level === level);
-  const pool = candidates.length ? candidates : practiceTemplates.filter((template) => template.kind === kind);
   elements.practiceSolutionTitle.textContent = "正在生成";
-  elements.practiceSolutionBody.innerHTML = "<p>正在生成题目并用后端校验...</p>";
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const item = pool[Math.floor(Math.random() * pool.length)].make();
-    try {
-      const result = await solve(payloadFromProblem(item));
-      lastPracticeProblem = item;
-      renderResult(result);
-      renderPracticeProblem(item, result);
-      renderSolution(elements.practiceSolutionTitle, elements.practiceSolutionBody, result, item.title);
-      return;
-    } catch {
-      // Try another generated instance.
-    }
+  elements.practiceSolutionBody.innerHTML = "<p>正在从后端随机生成题目、去重并校验解答...</p>";
+  elements.generatePractice.disabled = true;
+  try {
+    const response = await fetch("/api/practice/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind,
+        level,
+        avoid_signatures: loadPracticeSignatures(),
+        max_attempts: 160,
+      }),
+    });
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error || "题目生成失败");
+    rememberPracticeSignature(data.signature);
+    const item = data.problem;
+    const result = data.solution;
+    lastPracticeProblem = item;
+    applyProblem(item);
+    renderResult(result);
+    renderPracticeProblem(item, result, data);
+    renderSolution(elements.practiceSolutionTitle, elements.practiceSolutionBody, result, item.title);
+  } catch (error) {
+    elements.practiceSolutionTitle.textContent = "生成失败";
+    elements.practiceSolutionBody.innerHTML = `<div class="message error">${error.message}</div>`;
+  } finally {
+    elements.generatePractice.disabled = false;
   }
-  elements.practiceSolutionBody.innerHTML = `<div class="message error">连续生成失败，请换一个类型或难度。</div>`;
 }
 
 function kindLabel(kind) {
-  return { definite: "定积分", indefinite: "不定积分", improper: "反常积分", double: "二重积分" }[kind] || kind;
+  return {
+    definite: "定积分",
+    indefinite: "不定积分",
+    improper: "反常积分",
+    double: "二重积分",
+    polar: "极坐标积分",
+    polar_area: "极坐标面积",
+    polar_double: "极坐标二重积分",
+  }[kind] || kind;
 }
 
 function levelLabel(level) {
@@ -748,6 +822,11 @@ function qaPayload() {
       xUpper: elements.qaXUpper.value,
       yLower: elements.qaYLower.value,
       yUpper: elements.qaYUpper.value,
+      innerExpression: elements.qaInnerExpression.value,
+      rLower: elements.qaRLower.value,
+      rUpper: elements.qaRUpper.value,
+      thetaLower: elements.qaThetaLower.value,
+      thetaUpper: elements.qaThetaUpper.value,
     };
   }
   return {
@@ -759,6 +838,11 @@ function qaPayload() {
     xUpper: elements.qaXUpper.value,
     yLower: elements.qaYLower.value,
     yUpper: elements.qaYUpper.value,
+    innerExpression: elements.qaInnerExpression.value,
+    rLower: elements.qaRLower.value,
+    rUpper: elements.qaRUpper.value,
+    thetaLower: elements.qaThetaLower.value,
+    thetaUpper: elements.qaThetaUpper.value,
   };
 }
 
@@ -776,6 +860,11 @@ async function askQuestion() {
       xUpper: result.bounds?.x_upper,
       yLower: result.bounds?.y_lower,
       yUpper: result.bounds?.y_upper,
+      innerExpression: result.polar?.inner,
+      rLower: result.bounds?.r_lower,
+      rUpper: result.bounds?.r_upper,
+      thetaLower: result.bounds?.theta_lower,
+      thetaUpper: result.bounds?.theta_upper,
     });
     renderResult(result);
     renderSolution(elements.qaSolutionTitle, elements.qaSolutionBody, result, "问答解答");
@@ -787,8 +876,17 @@ async function askQuestion() {
 
 function updateQaBounds() {
   const isDouble = elements.qaMode.value === "double";
-  elements.qaBounds.style.display = elements.qaMode.value === "indefinite" || isDouble ? "none" : "grid";
+  const isPolarArea = elements.qaMode.value === "polar_area";
+  const isPolarDouble = elements.qaMode.value === "polar_double";
+  const isPolar = isPolarArea || isPolarDouble;
+  elements.qaBounds.style.display = elements.qaMode.value === "indefinite" || isDouble || isPolar ? "none" : "grid";
   elements.qaDoubleBounds.style.display = isDouble ? "grid" : "none";
+  elements.qaPolarBounds.style.display = isPolar ? "grid" : "none";
+  for (const node of elements.qaPolarAreaFields) node.style.display = isPolarArea ? "grid" : "none";
+  for (const node of elements.qaPolarDoubleFields) node.style.display = isPolarDouble ? "grid" : "none";
+  elements.qaExpressionLabel.textContent = isPolarArea ? "外半径 r_out(theta)" : isPolarDouble ? "函数 f(r, theta)" : "函数表达式";
+  if (isPolarArea && elements.qaExpression.value === "x^2") elements.qaExpression.value = "2*sin(theta)";
+  if (isPolarDouble && elements.qaExpression.value === "x^2") elements.qaExpression.value = "1";
 }
 
 function typesetMath() {
@@ -817,7 +915,105 @@ function drawPlot(plot) {
     drawSurfacePlot(ctx, width, height, plot);
     return;
   }
+  if (plot?.kind === "polar_area" || plot?.kind === "polar_surface") {
+    drawPolarPlot(ctx, width, height, plot);
+    return;
+  }
   drawCurvePlot(ctx, width, height, plot);
+}
+
+function drawPolarPlot(ctx, width, height, plot) {
+  const cx = width * 0.5;
+  const cy = height * 0.5;
+  const radius = Math.max(40, Math.min(width, height) * 0.39);
+  const rMax = Math.max(1e-9, plot.rMax || 1);
+  const toPx = (point) => {
+    if (!point || point.x === null || point.y === null) return null;
+    return {
+      x: cx + (point.x / rMax) * radius,
+      y: cy - (point.y / rMax) * radius,
+    };
+  };
+
+  ctx.save();
+  ctx.fillStyle = "#fbfdfd";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.strokeStyle = "#dbe5e8";
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 4; i += 1) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, (radius * i) / 4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  for (let i = 0; i < 12; i += 1) {
+    const angle = (Math.PI * 2 * i) / 12;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * radius, cy - Math.sin(angle) * radius);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = "#8fa1a8";
+  ctx.beginPath();
+  ctx.moveTo(cx - radius - 12, cy);
+  ctx.lineTo(cx + radius + 12, cy);
+  ctx.moveTo(cx, cy + radius + 12);
+  ctx.lineTo(cx, cy - radius - 12);
+  ctx.stroke();
+
+  const outer = (plot.outer || []).map(toPx).filter(Boolean);
+  const inner = (plot.inner || []).map(toPx).filter(Boolean);
+  if (outer.length > 2) {
+    ctx.beginPath();
+    ctx.moveTo(outer[0].x, outer[0].y);
+    for (const point of outer.slice(1)) ctx.lineTo(point.x, point.y);
+    if (inner.length > 2) {
+      for (const point of [...inner].reverse()) ctx.lineTo(point.x, point.y);
+    } else {
+      ctx.lineTo(cx, cy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "rgba(11, 122, 117, 0.18)";
+    ctx.fill();
+  }
+
+  if (plot.kind === "polar_surface" && Array.isArray(plot.rows)) {
+    const zMin = plot.zMin ?? -1;
+    const zMax = plot.zMax ?? 1;
+    for (const row of plot.rows) {
+      for (const sample of row) {
+        const p = toPx(sample);
+        if (!p || sample.z === null || sample.z === undefined) continue;
+        const zRatio = Math.max(0, Math.min(1, (sample.z - zMin) / Math.max(1e-9, zMax - zMin)));
+        ctx.fillStyle = `rgba(${Math.round(26 + zRatio * 190)}, ${Math.round(110 + zRatio * 60)}, 150, 0.32)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  drawPolarCurve(ctx, outer, "#0b7a75", 2.4);
+  drawPolarCurve(ctx, inner, "#a65f00", 1.8);
+
+  ctx.fillStyle = "#42545b";
+  ctx.font = "12px Cascadia Mono, Consolas, monospace";
+  ctx.fillText("0", cx + 6, cy - 6);
+  ctx.fillText(`r≈${formatNumber(rMax)}`, cx + radius - 44, cy - 8);
+  ctx.fillText(`θ: ${formatNumber(plot.thetaMin)}..${formatNumber(plot.thetaMax)}`, 16, height - 18);
+  ctx.restore();
+}
+
+function drawPolarCurve(ctx, points, color, width) {
+  if (!points || points.length < 2) return;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawCurvePlot(ctx, width, height, plot) {
@@ -1067,6 +1263,8 @@ function drawMiniPlot(canvas, plot) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (plot?.kind === "surface") {
     drawSurfacePlot(ctx, canvas.width, canvas.height, plot);
+  } else if (plot?.kind === "polar_area" || plot?.kind === "polar_surface") {
+    drawPolarPlot(ctx, canvas.width, canvas.height, plot);
   } else {
     drawCurvePlot(ctx, canvas.width, canvas.height, plot);
   }
@@ -1081,7 +1279,20 @@ function bindEvents() {
   for (const tab of elements.modeTabs) tab.addEventListener("click", () => setSection(tab.dataset.section));
   for (const button of elements.modeButtons) button.addEventListener("click", () => setMode(button.dataset.mode));
   elements.calculate.addEventListener("click", calculate);
-  for (const input of [elements.expression, elements.lower, elements.upper, elements.xLower, elements.xUpper, elements.yLower, elements.yUpper]) {
+  for (const input of [
+    elements.expression,
+    elements.lower,
+    elements.upper,
+    elements.xLower,
+    elements.xUpper,
+    elements.yLower,
+    elements.yUpper,
+    elements.innerExpression,
+    elements.rLower,
+    elements.rUpper,
+    elements.thetaLower,
+    elements.thetaUpper,
+  ]) {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") calculate();
     });
