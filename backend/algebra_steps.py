@@ -34,6 +34,208 @@ def coefficient_prefix(value: sp.Expr) -> str:
     return safe_latex(value)
 
 
+TAG_TRANSLATIONS = {
+    "换元法": "Substitution",
+    "三角复合函数": "trigonometric composite",
+    "分部积分": "integration by parts",
+    "三角恒等式": "trigonometric identity",
+    "绝对值分段": "absolute value split",
+    "原函数": "antiderivative",
+    "基本公式": "basic formula",
+    "微积分基本定理": "Fundamental Theorem of Calculus",
+    "反常积分": "improper integral",
+    "极限": "limit",
+    "二重积分": "double integral",
+    "累次积分": "iterated integral",
+    "极坐标面积": "polar area",
+    "扇形微元": "sector area element",
+    "极坐标二重积分": "polar double integral",
+    "雅可比": "Jacobian",
+    "降幂公式": "power-reduction identity",
+    "积化和差": "product-to-sum identity",
+}
+
+
+FORMULA_CARDS = {
+    "generic_antiderivative": {
+        "zh-CN": [
+            ("原函数定义", r"F'(x)=f(x)", "找到一个求导后等于被积函数的函数。"),
+        ],
+        "en-US": [
+            ("Antiderivative definition", r"F'(x)=f(x)", "Find a function whose derivative is the integrand."),
+        ],
+    },
+    "fundamental_theorem": {
+        "zh-CN": [
+            ("微积分基本定理", r"\int_a^b f(x)\,dx=F(b)-F(a)", "先求原函数，再代入上下限。"),
+        ],
+        "en-US": [
+            ("Fundamental Theorem of Calculus", r"\int_a^b f(x)\,dx=F(b)-F(a)", "First find an antiderivative, then evaluate at the bounds."),
+        ],
+    },
+    "u_sub_cos_power_sin": {
+        "zh-CN": [
+            ("换元法", r"u=g(x),\quad du=g'(x)\,dx", "当外层函数伴随内层导数出现时，把内层整体设为新变量。"),
+            ("三角导数", r"d(\cos x)=-\sin x\,dx", r"这里 \(\sin x\,dx\) 正好能转成 \(-du\)。"),
+        ],
+        "en-US": [
+            ("Substitution", r"u=g(x),\quad du=g'(x)\,dx", "When a composite function appears with the derivative of its inside, replace the inside by a new variable."),
+            ("Trig derivative", r"d(\cos x)=-\sin x\,dx", r"Here \(\sin x\,dx\) becomes \(-du\)."),
+        ],
+    },
+    "u_sub_sin_power_cos": {
+        "zh-CN": [
+            ("换元法", r"u=g(x),\quad du=g'(x)\,dx", "当外层函数伴随内层导数出现时，把内层整体设为新变量。"),
+            ("三角导数", r"d(\sin x)=\cos x\,dx", r"这里 \(\cos x\,dx\) 正好能转成 \(du\)。"),
+        ],
+        "en-US": [
+            ("Substitution", r"u=g(x),\quad du=g'(x)\,dx", "When a composite function appears with the derivative of its inside, replace the inside by a new variable."),
+            ("Trig derivative", r"d(\sin x)=\cos x\,dx", r"Here \(\cos x\,dx\) becomes \(du\)."),
+        ],
+    },
+    "trig_power_reduction": {
+        "zh-CN": [
+            ("降幂公式", r"\sin^2x=\frac{1-\cos 2x}{2}", "偶次三角幂通常先降幂，再逐项积分。"),
+            ("降幂公式", r"\cos^2x=\frac{1+\cos 2x}{2}", "平方项不能直接当作普通幂函数积分。"),
+        ],
+        "en-US": [
+            ("Power-reduction identity", r"\sin^2x=\frac{1-\cos 2x}{2}", "Even powers of trig functions are usually reduced before integrating."),
+            ("Power-reduction identity", r"\cos^2x=\frac{1+\cos 2x}{2}", "A squared trig function is not integrated like an ordinary power."),
+        ],
+    },
+    "trig_product_to_sum": {
+        "zh-CN": [
+            ("积化和差", r"\sin A\cos B=\frac12[\sin(A+B)+\sin(A-B)]", "不同角度的三角函数相乘时，先化成和差更容易积分。"),
+            ("积化和差", r"\sin A\sin B=\frac12[\cos(A-B)-\cos(A+B)]", "乘积变成和差后可以逐项积分。"),
+            ("积化和差", r"\cos A\cos B=\frac12[\cos(A-B)+\cos(A+B)]", "乘积变成和差后可以逐项积分。"),
+        ],
+        "en-US": [
+            ("Product-to-sum", r"\sin A\cos B=\frac12[\sin(A+B)+\sin(A-B)]", "Products with different angles are easier after converting to sums."),
+            ("Product-to-sum", r"\sin A\sin B=\frac12[\cos(A-B)-\cos(A+B)]", "After conversion, integrate term by term."),
+            ("Product-to-sum", r"\cos A\cos B=\frac12[\cos(A-B)+\cos(A+B)]", "After conversion, integrate term by term."),
+        ],
+    },
+    "integration_by_parts": {
+        "zh-CN": [
+            ("分部积分", r"\int u\,dv=uv-\int v\,du", r"乘积型函数常把会变简单的部分选作 \(u\)。"),
+        ],
+        "en-US": [
+            ("Integration by parts", r"\int u\,dv=uv-\int v\,du", r"For products, choose \(u\) as the part that becomes simpler after differentiating."),
+        ],
+    },
+    "trig_identity_abs_piecewise": {
+        "zh-CN": [
+            ("平方恒等式", r"1-\sin^2x=\cos^2x", "先把根号内因式分解，再用恒等式化成平方。"),
+            ("绝对值", r"\sqrt{\cos^2x}=|\cos x|", "开平方后必须保留绝对值，再按区间判断符号。"),
+        ],
+        "en-US": [
+            ("Pythagorean identity", r"1-\sin^2x=\cos^2x", "Factor inside the radical first, then turn the remaining factor into a square."),
+            ("Absolute value", r"\sqrt{\cos^2x}=|\cos x|", "Taking the square root creates an absolute value, so split by sign."),
+        ],
+    },
+    "improper_limit": {
+        "zh-CN": [("反常积分定义", r"\int_a^\infty f(x)\,dx=\lim_{B\to\infty}\int_a^B f(x)\,dx", "无穷上下限必须先写成极限。")],
+        "en-US": [("Improper integral definition", r"\int_a^\infty f(x)\,dx=\lim_{B\to\infty}\int_a^B f(x)\,dx", "Infinite bounds must be handled with limits.")],
+    },
+    "rectangular_double_integral": {
+        "zh-CN": [("累次积分", r"\iint_R f(x,y)\,dA=\int_a^b\int_c^d f(x,y)\,dy\,dx", "矩形区域可以先沿一个方向积分，再沿另一个方向累加。")],
+        "en-US": [("Iterated integral", r"\iint_R f(x,y)\,dA=\int_a^b\int_c^d f(x,y)\,dy\,dx", "On a rectangle, integrate in one direction and then accumulate in the other.")],
+    },
+    "polar_area_formula": {
+        "zh-CN": [("极坐标面积", r"A=\frac12\int_\alpha^\beta(r_{out}^2-r_{in}^2)\,d\theta", r"小扇形面积给出 \(\frac12r^2d\theta\)。")],
+        "en-US": [("Polar area", r"A=\frac12\int_\alpha^\beta(r_{out}^2-r_{in}^2)\,d\theta", r"A thin sector contributes \(\frac12r^2d\theta\).")],
+    },
+    "polar_double_jacobian": {
+        "zh-CN": [("极坐标雅可比", r"dA=r\,dr\,d\theta", r"离原点越远，同样角度扫出的弧越长，所以多出因子 \(r\)。")],
+        "en-US": [("Polar Jacobian", r"dA=r\,dr\,d\theta", r"Farther from the origin, the same angle sweeps a longer arc, creating the factor \(r\).")],
+    },
+}
+
+
+REASONING_STEPS = {
+    "generic_antiderivative": {
+        "zh-CN": ["这是不定积分，目标是找一个求导后回到被积函数的原函数。", r"求出原函数后要加 \(C\)，因为任意常数求导都是 0。"],
+        "en-US": ["This is an indefinite integral, so the goal is to find an antiderivative.", r"After finding one antiderivative, add \(C\) because every constant has derivative 0."],
+    },
+    "fundamental_theorem": {
+        "zh-CN": ["这是有限区间上的定积分。", r"先找原函数 \(F\)，再用 \(F(b)-F(a)\) 表示从 \(a\) 到 \(b\) 的净累积量。"],
+        "en-US": ["This is a definite integral on a finite interval.", r"Find an antiderivative \(F\), then compute the net accumulation \(F(b)-F(a)\)."],
+    },
+    "u_sub_cos_power_sin": {
+        "zh-CN": [r"识别到 \(\cos x\) 的幂，同时旁边有 \(\sin x\,dx\)。", r"因为 \(d(\cos x)=-\sin x\,dx\)，所以令 \(u=\cos x\) 后积分变成幂函数积分。"],
+        "en-US": [r"We see a power of \(\cos x\) together with \(\sin x\,dx\).", r"Since \(d(\cos x)=-\sin x\,dx\), setting \(u=\cos x\) turns the integral into a power integral."],
+    },
+    "u_sub_sin_power_cos": {
+        "zh-CN": [r"识别到 \(\sin x\) 的幂，同时旁边有 \(\cos x\,dx\)。", r"因为 \(d(\sin x)=\cos x\,dx\)，所以令 \(u=\sin x\)。"],
+        "en-US": [r"We see a power of \(\sin x\) together with \(\cos x\,dx\).", r"Since \(d(\sin x)=\cos x\,dx\), set \(u=\sin x\)."],
+    },
+    "trig_power_reduction": {
+        "zh-CN": ["识别到偶次三角幂。", "偶次幂不容易直接换元，先用降幂公式把平方变成常数项和二倍角项。"],
+        "en-US": ["We see an even power of a trig function.", "Even powers are not direct substitutions, so first use a power-reduction identity."],
+    },
+    "trig_product_to_sum": {
+        "zh-CN": ["识别到两个三角函数相乘。", "用积化和差公式把乘积改写成几个可以直接积分的三角函数。"],
+        "en-US": ["We see a product of two trig functions.", "Use a product-to-sum identity to rewrite it as terms that integrate directly."],
+    },
+    "trig_identity_abs_piecewise": {
+        "zh-CN": ["先因式分解根号内表达式。", r"用 \(1-\sin^2x=\cos^2x\) 化简后会出现 \(|\cos x|\)。", r"因为 \(\cos x\) 在区间内变号，所以必须按符号分段。"],
+        "en-US": ["First factor the expression inside the radical.", r"Using \(1-\sin^2x=\cos^2x\) creates \(|\cos x|\).", r"Because \(\cos x\) changes sign on the interval, split the integral by sign."],
+    },
+    "integration_by_parts": {
+        "zh-CN": ["识别到乘积型表达式。", r"选择求导后更简单的部分作为 \(u\)，把另一部分作为 \(dv\)，再套用分部积分公式。"],
+        "en-US": ["We see a product of functions.", r"Choose the part that simplifies after differentiating as \(u\), put the other part in \(dv\), then apply integration by parts."],
+    },
+    "improper_limit": {
+        "zh-CN": ["反常积分的无穷端点不能直接代入。", "先把无穷端点替换成有限变量边界，再取极限判断是否收敛。"],
+        "en-US": ["An infinite endpoint cannot be substituted directly.", "Replace it by a finite variable bound first, then take a limit to decide convergence."],
+    },
+    "rectangular_double_integral": {
+        "zh-CN": ["区域是矩形，所以可以写成累次积分。", "先固定外层变量，对内层变量累积高度，再对外层变量继续累积。"],
+        "en-US": ["The region is rectangular, so the double integral can be written as an iterated integral.", "Hold the outer variable fixed, integrate in the inner direction, then accumulate in the outer direction."],
+    },
+    "polar_area_formula": {
+        "zh-CN": ["极坐标区域天然按角度切成薄扇形。", r"每个薄扇形的面积近似为 \(\frac12r^2d\theta\)，有内半径时用外半径平方减内半径平方。"],
+        "en-US": ["A polar region is naturally sliced into thin sectors by angle.", r"Each sector has area \(\frac12r^2d\theta\); with an inner radius, subtract the inner radius squared from the outer radius squared."],
+    },
+    "polar_double_jacobian": {
+        "zh-CN": ["极坐标二重积分仍然是在平面区域上累积函数值。", r"从直角坐标换到极坐标时，面积微元变成 \(dA=r\,dr\,d\theta\)，所以被积函数必须乘 \(r\)。"],
+        "en-US": ["A polar double integral still accumulates a function over a planar region.", r"Changing from Cartesian to polar coordinates gives \(dA=r\,dr\,d\theta\), so the integrand must be multiplied by \(r\)."],
+    },
+}
+
+
+def formula_cards(recipe_id: str, language: str) -> list[dict[str, str]]:
+    cards = FORMULA_CARDS.get(recipe_id, {})
+    selected = cards.get(language) or cards.get("zh-CN") or []
+    return [{"title": title, "latex": latex, "explanation": explanation} for title, latex, explanation in selected]
+
+
+def reasoning_steps(recipe_id: str, language: str) -> list[str]:
+    steps = REASONING_STEPS.get(recipe_id, {})
+    return list(steps.get(language) or steps.get("zh-CN") or [])
+
+
+def translate_tags(tags: list[str], language: str) -> list[str]:
+    if language != "en-US":
+        return tags
+    return [TAG_TRANSLATIONS.get(tag, tag) for tag in tags]
+
+
+def localize_response(payload: dict[str, Any], language: str) -> dict[str, Any]:
+    payload["language"] = language
+    payload["method_tags"] = translate_tags(payload.get("method_tags", []), language)
+    payload["formula_cards"] = formula_cards(payload.get("recipe_id", ""), language)
+    payload["reasoning_steps"] = reasoning_steps(payload.get("recipe_id", ""), language)
+    if language == "en-US" and not payload.get("available"):
+        payload["reason"] = "This problem type cannot yet be explained with a reliable full algebraic derivation; the system kept the answer, numerical check, and graph for verification."
+    if language == "en-US" and payload.get("recipe_id") == "trig_identity_abs_piecewise":
+        payload["notes"] = [
+            r"On \(0\le x\le \frac\pi2\), \(|\cos x|=\cos x\).",
+            r"On \(\frac\pi2\le x\le \pi\), \(|\cos x|=-\cos x\).",
+        ]
+    return payload
+
+
 def response(
     *,
     available: bool,
@@ -195,7 +397,7 @@ def build_cos_power_sin(
             method_tags=["换元法", "三角复合函数"],
             lines=[
                 rf"u &= \cos x,\quad du=-\sin x\,dx",
-                rf"{statement_latex} &= {-sp.latex(coeff)}\int u^{{{power}}}\,du",
+                rf"{statement_latex} &= {coefficient_prefix(-coeff)}\int u^{{{power}}}\,du",
                 rf"&= {anti_latex}+C",
                 rf"&= {safe_latex(anti_coeff * sp.cos(x) ** (power + 1))}+C",
             ],
@@ -279,6 +481,133 @@ def build_sin_power_cos(
         ],
         verified=final_is_verified(integration),
     )
+
+
+def build_trig_power_reduction(
+    mode: str,
+    expr: sp.Expr,
+    integration: dict[str, Any],
+    statement_latex: str,
+    final_latex: str,
+    x: sp.Symbol,
+) -> dict[str, Any] | None:
+    if mode not in {"definite", "indefinite"}:
+        return None
+    candidates = [
+        (sp.sin(x) ** 2, r"\sin^2x", r"\frac{1-\cos 2x}{2}", sp.Rational(1, 2) * (1 - sp.cos(2 * x))),
+        (sp.cos(x) ** 2, r"\cos^2x", r"\frac{1+\cos 2x}{2}", sp.Rational(1, 2) * (1 + sp.cos(2 * x))),
+    ]
+    for pattern, trig_latex, reduced_latex, reduced_expr in candidates:
+        coeff = sp.simplify(expr / pattern)
+        if coeff.has(x) or not is_zero(expr - coeff * pattern):
+            continue
+        coeff_prefix = coefficient_prefix(coeff)
+        reduced_with_coeff = sp.simplify(coeff * reduced_expr)
+        anti = sp.integrate(reduced_with_coeff, x)
+        if anti.has(sp.Integral):
+            return None
+        if mode == "indefinite":
+            return response(
+                available=True,
+                explainability="full",
+                recipe_id="trig_power_reduction",
+                method_tags=["降幂公式", "三角恒等式"],
+                lines=[
+                    rf"{trig_latex} &= {reduced_latex}",
+                    rf"{statement_latex} &= \int {safe_latex(reduced_with_coeff)}\,dx",
+                    rf"&= {safe_latex(sp.simplify(anti))}+C",
+                ],
+                verified=final_is_verified(integration),
+            )
+        bounds = integration.get("bounds", {})
+        lower = bounds.get("lower_latex", "a")
+        upper = bounds.get("upper_latex", "b")
+        return response(
+            available=True,
+            explainability="full",
+            recipe_id="trig_power_reduction",
+            method_tags=["降幂公式", "三角恒等式"],
+            lines=[
+                rf"{trig_latex} &= {reduced_latex}",
+                rf"{statement_latex} &= \int_{{{lower}}}^{{{upper}}}{safe_latex(reduced_with_coeff)}\,dx",
+                rf"&= \left[{safe_latex(sp.simplify(anti))}\right]_{{{lower}}}^{{{upper}}}",
+                rf"&= {final_latex}",
+            ],
+            verified=final_is_verified(integration),
+        )
+    return None
+
+
+def build_product_to_sum(
+    mode: str,
+    expr: sp.Expr,
+    integration: dict[str, Any],
+    statement_latex: str,
+    final_latex: str,
+    x: sp.Symbol,
+) -> dict[str, Any] | None:
+    if mode not in {"definite", "indefinite"}:
+        return None
+    candidates: list[tuple[sp.Expr, str, sp.Expr]] = []
+    for a in range(1, 7):
+        for b in range(1, 7):
+            candidates.extend(
+                [
+                    (
+                        sp.sin(a * x) * sp.cos(b * x),
+                        rf"\sin({a}x)\cos({b}x)=\frac12\left[\sin({a + b}x)+\sin({a - b}x)\right]",
+                        sp.Rational(1, 2) * (sp.sin((a + b) * x) + sp.sin((a - b) * x)),
+                    ),
+                    (
+                        sp.sin(a * x) * sp.sin(b * x),
+                        rf"\sin({a}x)\sin({b}x)=\frac12\left[\cos({a - b}x)-\cos({a + b}x)\right]",
+                        sp.Rational(1, 2) * (sp.cos((a - b) * x) - sp.cos((a + b) * x)),
+                    ),
+                    (
+                        sp.cos(a * x) * sp.cos(b * x),
+                        rf"\cos({a}x)\cos({b}x)=\frac12\left[\cos({a - b}x)+\cos({a + b}x)\right]",
+                        sp.Rational(1, 2) * (sp.cos((a - b) * x) + sp.cos((a + b) * x)),
+                    ),
+                ]
+            )
+    for pattern, identity_latex, expanded in candidates:
+        coeff = sp.simplify(expr / pattern)
+        if coeff.has(x) or not is_zero(expr - coeff * pattern):
+            continue
+        transformed = sp.simplify(coeff * expanded)
+        anti = sp.integrate(transformed, x)
+        if anti.has(sp.Integral):
+            return None
+        if mode == "indefinite":
+            return response(
+                available=True,
+                explainability="full",
+                recipe_id="trig_product_to_sum",
+                method_tags=["积化和差", "三角恒等式"],
+                lines=[
+                    identity_latex,
+                    rf"{statement_latex} &= \int {safe_latex(transformed)}\,dx",
+                    rf"&= {safe_latex(sp.simplify(anti))}+C",
+                ],
+                verified=final_is_verified(integration),
+            )
+        bounds = integration.get("bounds", {})
+        lower = bounds.get("lower_latex", "a")
+        upper = bounds.get("upper_latex", "b")
+        return response(
+            available=True,
+            explainability="full",
+            recipe_id="trig_product_to_sum",
+            method_tags=["积化和差", "三角恒等式"],
+            lines=[
+                identity_latex,
+                rf"{statement_latex} &= \int_{{{lower}}}^{{{upper}}}{safe_latex(transformed)}\,dx",
+                rf"&= \left[{safe_latex(sp.simplify(anti))}\right]_{{{lower}}}^{{{upper}}}",
+                rf"&= {final_latex}",
+            ],
+            verified=final_is_verified(integration),
+        )
+    return None
 
 
 def build_parts(
@@ -529,6 +858,8 @@ def build_algebra_steps(
             build_abs_trig_piecewise,
             build_cos_power_sin,
             build_sin_power_cos,
+            build_trig_power_reduction,
+            build_product_to_sum,
             build_parts,
             build_generic_single_variable,
         ]
@@ -537,29 +868,29 @@ def build_algebra_steps(
             if built:
                 if requested_recipe != "auto":
                     built["source_recipe_id"] = requested_recipe
-                return built
+                return localize_response(built, str(request.get("language", "zh-CN")))
     elif mode == "improper":
         built = build_improper(expr, integration, statement_latex, final_latex, x)
         if built:
-            return built
+            return localize_response(built, str(request.get("language", "zh-CN")))
     elif mode == "double":
         built = build_double(expr, integration, statement_latex, final_latex, x, y)
         if built:
-            return built
+            return localize_response(built, str(request.get("language", "zh-CN")))
     elif mode == "polar_area":
         built = build_polar_area(integration, statement_latex, final_latex)
         if built:
-            return built
+            return localize_response(built, str(request.get("language", "zh-CN")))
     elif mode == "polar_double":
         built = build_polar_double(expr, integration, statement_latex, final_latex, r, theta)
         if built:
-            return built
+            return localize_response(built, str(request.get("language", "zh-CN")))
 
-    return response(
+    return localize_response(response(
         available=False,
         explainability="result-only",
         recipe_id=requested_recipe,
         reason="这个题型暂时不能可靠生成完整代数推导；系统已保留答案、数值校验和图像用于核验。",
         verified=final_is_verified(integration),
         method_tags=recipe.get("method_tags", []),
-    )
+    ), str(request.get("language", "zh-CN")))

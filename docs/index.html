@@ -6,21 +6,24 @@
     <title>Calculus Studio</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-<body>
-  <div class="static-notice">
-    GitHub Pages 静态预览版：学习内容和界面可直接浏览，自动计算需要连接本地或云端 Python 后端。
-  </div>
-  <main class="app-shell">
+  <body>
+    <div class="static-notice">
+      GitHub Pages 静态预览版：学习内容和界面可直接浏览，自动计算需要连接本地或云端 Python 后端。
+    </div>
+    <main class="app-shell">
       <nav class="mode-nav" aria-label="主模式">
         <div>
           <p class="eyebrow">Calculus Studio</p>
           <h1>可视化积分学习系统</h1>
         </div>
-        <div class="mode-tabs" role="tablist" aria-label="页面模式">
-          <button class="mode-tab active" data-section="learn" type="button">学习路线</button>
-          <button class="mode-tab" data-section="practice" type="button">练习模式</button>
-          <button class="mode-tab" data-section="qa" type="button">问答模式</button>
-          <button class="mode-tab" data-section="tool" type="button">可视化工具</button>
+        <div class="mode-actions">
+          <div class="mode-tabs" role="tablist" aria-label="页面模式">
+            <button class="mode-tab active" data-section="learn" type="button">学习路线</button>
+            <button class="mode-tab" data-section="practice" type="button">练习模式</button>
+            <button class="mode-tab" data-section="qa" type="button">问答模式</button>
+            <button class="mode-tab" data-section="tool" type="button">可视化工具</button>
+          </div>
+          <button class="language-toggle" id="languageToggle" type="button" title="Switch language">EN</button>
         </div>
       </nav>
 
@@ -345,7 +348,7 @@
     </main>
 
     <script>
-      window.CALCULUS_API_BASE = "https://visualize-integrator.onrender.com";
+      window.CALCULUS_API_BASE = "";
     </script>
     <script>
       window.MathJax = {
@@ -353,6 +356,8 @@
         svg: { fontCache: "global" },
       };
     </script>
+    <script src="i18n/zh-CN.js"></script>
+    <script src="i18n/en-US.js"></script>
     <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
     <script src="app.js"></script>
   </body>

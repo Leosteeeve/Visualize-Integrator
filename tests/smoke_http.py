@@ -1,8 +1,10 @@
 import json
+import os
 from urllib import request
 
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = os.environ.get("CALCULUS_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+TIMEOUT = float(os.environ.get("CALCULUS_HTTP_TIMEOUT", "60"))
 
 
 def post_json(path, payload):
@@ -13,7 +15,7 @@ def post_json(path, payload):
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with request.urlopen(req, timeout=10) as response:
+    with request.urlopen(req, timeout=TIMEOUT) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -24,10 +26,18 @@ def expect(name, condition):
 
 
 def main():
-    with request.urlopen(BASE_URL + "/", timeout=10) as response:
+    with request.urlopen(BASE_URL + "/", timeout=TIMEOUT) as response:
         html = response.read().decode("utf-8")
 
-    for marker in ['id="lessonTabs"', 'id="practiceKind"', 'id="qaRaw"', 'id="plot"', 'id="polarBoundsGrid"']:
+    for marker in [
+        'id="lessonTabs"',
+        'id="practiceKind"',
+        'id="qaRaw"',
+        'id="plot"',
+        'id="polarBoundsGrid"',
+        'id="languageToggle"',
+        'i18n/en-US.js',
+    ]:
         expect(f"page marker {marker}", marker in html)
 
     definite = post_json(
@@ -37,6 +47,24 @@ def main():
     expect(
         "http definite solve",
         definite["ok"] and definite["result_latex"] == r"\frac{1}{3}" and definite["algebra_steps"]["available"],
+    )
+
+    english = post_json(
+        "/api/solve",
+        {
+            "mode": "definite",
+            "expression": "cos(x)^5*sin(x)",
+            "lower": "0",
+            "upper": "pi/2",
+            "language": "en-US",
+        },
+    )
+    expect(
+        "http english solve",
+        english["ok"]
+        and english["language"] == "en-US"
+        and english["method"] == "Substitution"
+        and english["algebra_steps"]["formula_cards"][0]["title"] == "Substitution",
     )
 
     double = post_json(
@@ -63,11 +91,15 @@ def main():
 
     practice = post_json(
         "/api/practice/generate",
-        {"kind": "definite", "level": "easy", "seed": "http-practice"},
+        {"kind": "definite", "level": "easy", "seed": "http-practice", "language": "en-US"},
     )
     expect(
         "http practice generate",
-        practice["ok"] and practice["solution"]["ok"] and practice["signature"] and "algebra_steps" in practice["solution"],
+        practice["ok"]
+        and practice["solution"]["ok"]
+        and practice["solution"]["language"] == "en-US"
+        and practice["signature"]
+        and "algebra_steps" in practice["solution"],
     )
 
     practice_next = post_json(

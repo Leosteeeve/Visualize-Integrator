@@ -1283,6 +1283,161 @@ def is_separable_xy(expr: sp.Expr) -> bool:
     return has_x_factor and has_y_factor
 
 
+def normalize_language(request: dict[str, Any]) -> str:
+    return "en-US" if str(request.get("language", "zh-CN")).lower().startswith("en") else "zh-CN"
+
+
+METHOD_ENGLISH = {
+    "u_sub_cos_power_sin": ("Substitution", "The integrand contains a power of cosine and the differential of cosine, so substitution turns it into a power integral."),
+    "u_sub_sin_power_cos": ("Substitution", "The integrand contains a power of sine and the differential of sine, so substitution turns it into a power integral."),
+    "trig_power_reduction": ("Trigonometric power reduction", "An even trigonometric power is rewritten with a power-reduction identity before integrating."),
+    "trig_product_to_sum": ("Product-to-sum identity", "A product of trigonometric functions is rewritten as a sum so each term can be integrated directly."),
+    "integration_by_parts": ("Integration by parts", "For a product, choose one factor to differentiate and the other to integrate, then apply the integration-by-parts formula."),
+    "trig_identity_abs_piecewise": ("Trigonometric identity and sign split", "Factor the radical, use a Pythagorean identity, then split the absolute value where the sign changes."),
+    "improper_limit": ("Improper integral: limit definition", "Rewrite the infinite or singular endpoint as a limit before evaluating."),
+    "rectangular_double_integral": ("Double integral over a rectangle", "Compute the iterated integral one variable at a time."),
+    "polar_area_formula": ("Polar area formula", "Use the thin-sector area element for a polar curve."),
+    "polar_double_jacobian": ("Polar double integral: Jacobian factor", r"In polar coordinates the area element is multiplied by the Jacobian factor \(r\)."),
+    "fundamental_theorem": ("Definite integral: Fundamental Theorem of Calculus", "Find an antiderivative first, then evaluate it at the upper and lower bounds."),
+    "generic_antiderivative": ("Indefinite integral: antiderivative", "Find a function whose derivative is the integrand, then add the constant of integration."),
+}
+
+
+CONCEPT_ENGLISH = {
+    "基本原函数": "basic antiderivatives",
+    "逐项积分": "term-by-term integration",
+    "换元法": "substitution",
+    "链式法则逆用": "reverse chain rule",
+    "分部积分": "integration by parts",
+    "恒等变形": "identity transformation",
+    "有理函数": "rational functions",
+    "特殊函数": "special functions",
+    "多步骤技巧": "multi-step techniques",
+    "微积分基本定理": "Fundamental Theorem of Calculus",
+    "有向面积": "signed area",
+    "对称性": "symmetry",
+    "三角恒等式": "trigonometric identities",
+    "部分分式": "partial fractions",
+    "技巧综合": "combined techniques",
+    "数值校验": "numerical check",
+    "挑战积分": "challenge integral",
+    "极限定义": "limit definition",
+    "p 型积分": "p-integral",
+    "收敛判别": "convergence test",
+    "端点奇异": "endpoint singularity",
+    "指数尾部": "exponential tail",
+    "比较判别": "comparison test",
+    "对数换元": "log substitution",
+    "双重反常": "two-sided improper integral",
+    "条件收敛": "conditional convergence",
+    "高精度数值": "high-precision numeric check",
+    "矩形区域": "rectangular region",
+    "曲面体积": "surface volume",
+    "累次积分": "iterated integral",
+    "可分离函数": "separable function",
+    "二重积分技巧": "double-integral techniques",
+    "耦合曲面": "coupled surface",
+    "可分离结构": "separable structure",
+    "数值曲面体积": "numeric surface volume",
+    "振荡曲面": "oscillating surface",
+    "极坐标面积": "polar area",
+    "扇形微元": "sector element",
+    "心形线": "cardioid",
+    "玫瑰线": "rose curve",
+    "夹层面积": "area between curves",
+    "极坐标二重积分": "polar double integral",
+    "雅可比因子": "Jacobian factor",
+    "变量边界": "variable bounds",
+    "数值极坐标": "numeric polar integral",
+    "复杂边界": "complex bounds",
+}
+
+
+PROBLEM_TITLE_ENGLISH = {
+    "definite": "Definite integral practice",
+    "indefinite": "Indefinite integral practice",
+    "improper": "Improper integral practice",
+    "double": "Double integral practice",
+    "polar_area": "Polar area practice",
+    "polar_double": "Polar double integral practice",
+}
+
+
+PROBLEM_TARGET_ENGLISH = {
+    "definite": "Choose a reliable integration technique, show the algebra, and check the answer.",
+    "indefinite": "Find an antiderivative and verify it by differentiation.",
+    "improper": "Rewrite the problem as a limit and decide whether it converges.",
+    "double": "Evaluate the iterated integral over the given region.",
+    "polar_area": "Use the polar area formula and show the radius-square step.",
+    "polar_double": r"Use the polar Jacobian \(r\) and evaluate the iterated integral.",
+}
+
+
+def english_steps(
+    integration: dict[str, Any],
+    statement: str,
+    final: str,
+    method: str,
+    algebra: dict[str, Any],
+) -> list[str]:
+    steps = [f"Write the problem as \\({statement}\\).", f"Method choice: {method}."]
+    steps.extend(algebra.get("reasoning_steps", []))
+    exact = integration.get("exact", {})
+    numeric = integration.get("numeric", {})
+    if exact.get("available"):
+        steps.append(f"Exact result: \\({exact.get('latex')}\\).")
+    if numeric.get("value") is not None:
+        steps.append(f"Numerical check: \\({numeric.get('value')}\\), estimated error \\({numeric.get('estimated_error')}\\).")
+    steps.append(f"Final answer: \\({final}\\).")
+    return steps
+
+
+def localize_solution_payload(payload: dict[str, Any], language: str) -> dict[str, Any]:
+    payload["language"] = language
+    if language != "en-US":
+        return payload
+    algebra = payload.get("algebra_steps", {})
+    recipe_id = algebra.get("recipe_id", "")
+    method, explanation = METHOD_ENGLISH.get(
+        recipe_id,
+        ("Symbolic computation with numerical verification", "The system can compute the answer, but this expression is not yet matched to a reliable full derivation template."),
+    )
+    payload["method"] = method
+    payload["method_explanation"] = explanation
+    if payload.get("ok"):
+        payload["steps"] = english_steps(payload, payload.get("statement_latex", ""), payload.get("result_latex", ""), method, algebra)
+    else:
+        payload["method"] = "Unable to identify a reliable method"
+        payload["method_explanation"] = "The expression or bounds could not be parsed. Please check the input."
+        payload["steps"] = ["The problem was not parsed successfully, so no calculation steps were generated."]
+    return payload
+
+
+def localize_problem_item(problem_item: dict[str, Any], language: str) -> dict[str, Any]:
+    if language != "en-US":
+        return problem_item
+    localized = dict(problem_item)
+    mode = str(localized.get("mode", "definite"))
+    localized["title"] = PROBLEM_TITLE_ENGLISH.get(mode, "Integral practice")
+    localized["target"] = PROBLEM_TARGET_ENGLISH.get(mode, "Solve the integral and verify the result.")
+    localized["kindLabel"] = {
+        "definite": "Definite integral",
+        "indefinite": "Indefinite integral",
+        "improper": "Improper integral",
+        "double": "Double integral",
+        "polar": "Polar integral",
+    }.get(str(localized.get("kind")), str(localized.get("kindLabel", "")))
+    localized["levelLabel"] = {
+        "easy": "Easy",
+        "ap": "AP",
+        "advanced": "Advanced techniques",
+        "mit": "MIT / Challenge",
+    }.get(str(localized.get("level")), str(localized.get("levelLabel", "")))
+    localized["concepts"] = [CONCEPT_ENGLISH.get(item, item) for item in localized.get("concepts", [])]
+    localized["methodTags"] = [CONCEPT_ENGLISH.get(item, item) for item in localized.get("methodTags", [])]
+    return localized
+
+
 def identify_solution_method(request: dict[str, Any], expr: sp.Expr, integration: dict[str, Any]) -> tuple[str, str]:
     mode = integration.get("mode")
     if mode == "polar_area":
@@ -1407,10 +1562,12 @@ def solve_steps(request: dict[str, Any], expr: sp.Expr, integration: dict[str, A
 
 def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
     try:
+        language = normalize_language(request)
         request = apply_raw_integral(request)
+        request["language"] = language
         integration = integrate_payload(request)
         if not integration.get("ok"):
-            return {
+            return localize_solution_payload({
                 **integration,
                 "problem_type": integration.get("mode", request.get("mode")),
                 "method": "无法可靠识别方法",
@@ -1421,12 +1578,34 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
                     "题目没有成功解析，因此没有生成计算步骤。",
                     f"错误信息：{integration.get('error', '未知错误')}",
                 ],
-            }
+                "algebra_steps": algebra_steps.build_algebra_steps(
+                    request=request,
+                    expr=sp.Integer(0),
+                    integration=integration,
+                    statement_latex="",
+                    final_latex="",
+                    x=x,
+                    y=y,
+                    r=r,
+                    theta=theta,
+                ),
+            }, language)
 
         expr = parse_math(str(request.get("expression", "")))
         method, explanation = identify_solution_method(request, expr, integration)
         statement = solve_statement_latex(request, integration)
-        return {
+        algebra = algebra_steps.build_algebra_steps(
+            request=request,
+            expr=expr,
+            integration=integration,
+            statement_latex=statement,
+            final_latex=result_latex(integration),
+            x=x,
+            y=y,
+            r=r,
+            theta=theta,
+        )
+        return localize_solution_payload({
             **integration,
             "problem_type": integration.get("mode"),
             "method": method,
@@ -1434,20 +1613,11 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
             "statement_latex": statement,
             "result_latex": result_latex(integration),
             "steps": solve_steps(request, expr, integration, method),
-            "algebra_steps": algebra_steps.build_algebra_steps(
-                request=request,
-                expr=expr,
-                integration=integration,
-                statement_latex=statement,
-                final_latex=result_latex(integration),
-                x=x,
-                y=y,
-                r=r,
-                theta=theta,
-            ),
-        }
+            "algebra_steps": algebra,
+        }, language)
     except Exception as exc:
-        return {
+        language = normalize_language(request)
+        return localize_solution_payload({
             **make_error_response(exc),
             "problem_type": request.get("mode"),
             "method": "无法可靠识别方法",
@@ -1458,7 +1628,7 @@ def solve_payload(request: dict[str, Any]) -> dict[str, Any]:
                 "题目没有成功解析，因此没有生成计算步骤。",
                 f"错误信息：{exc}",
             ],
-        }
+        }, language)
 
 
 def make_error_response(exc: Exception) -> dict[str, Any]:
@@ -1490,6 +1660,7 @@ def is_practice_solution_usable(solution: dict[str, Any]) -> bool:
 
 def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
     try:
+        language = normalize_language(request)
         kind = str(request.get("kind", "definite"))
         level = str(request.get("level", "easy"))
         seed = problem_generator.make_seed(request.get("seed"))
@@ -1505,6 +1676,7 @@ def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
                 last_error = "generated duplicate signature"
                 continue
 
+            candidate["payload"]["language"] = language
             solution = solve_payload(candidate["payload"])
             if not is_practice_solution_usable(solution):
                 last_error = solution.get("error") or "solution did not pass practice validation"
@@ -1523,6 +1695,7 @@ def generate_practice_payload(request: dict[str, Any]) -> dict[str, Any]:
                 "familyId": candidate["family_id"],
                 "concepts": candidate["concepts"],
             }
+            problem_item = localize_problem_item(problem_item, language)
             return {
                 "ok": True,
                 "problem": problem_item,

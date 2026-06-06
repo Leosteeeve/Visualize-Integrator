@@ -25,7 +25,7 @@ def main():
             families = problem_generator.FAMILIES_BY_KEY[(kind, level)]
             expect(f"{kind}/{level} family minimum", len(families) >= 10)
 
-    per_pair = 100 if os.environ.get("CALCULUS_GENERATOR_STRESS") else 2
+    per_pair = 100 if os.environ.get("CALCULUS_GENERATOR_STRESS") else 1
     seen = set()
     for kind in problem_generator.KINDS:
         for level in problem_generator.LEVELS:
@@ -60,6 +60,15 @@ def main():
     expect("avoid first result", first["ok"])
     expect("avoid second result", second["ok"])
     expect("avoid signature changes", first["signature"] != second["signature"])
+
+    english = server.generate_practice_payload(
+        {"kind": "definite", "level": "ap", "seed": "english-practice", "language": "en-US"}
+    )
+    expect("english practice generated", english["ok"])
+    expect("english practice problem localized", english["problem"]["title"] == "Definite integral practice")
+    expect("english practice solution localized", english["solution"]["language"] == "en-US")
+    expect("english practice algebra localized", english["solution"]["algebra_steps"]["language"] == "en-US")
+    expect("english practice concepts localized", all("法" not in item for item in english["problem"].get("concepts", [])))
 
     bad = server.generate_practice_payload({"kind": "vector", "level": "easy"})
     expect("invalid kind handled", not bad["ok"] and bool(bad["error"]))

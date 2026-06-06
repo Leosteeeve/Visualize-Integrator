@@ -36,16 +36,6 @@ body {
     repeating-linear-gradient(0deg, rgba(21, 32, 38, 0.035) 0 1px, transparent 1px 44px);
 }
 
-.static-notice {
-  padding: 10px 20px;
-  color: #31525f;
-  background: #e8f6f4;
-  border-bottom: 1px solid rgba(11, 122, 117, 0.18);
-  font-size: 14px;
-  line-height: 1.5;
-  text-align: center;
-}
-
 button,
 input,
 select {
@@ -70,6 +60,15 @@ a:hover {
   padding: 20px;
 }
 
+.static-notice {
+  border-bottom: 1px solid #d7dee2;
+  background: #f8fbfb;
+  color: #52666d;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .mode-nav {
   display: flex;
   align-items: center;
@@ -89,6 +88,14 @@ a:hover {
   gap: 8px;
 }
 
+.mode-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .mode-tab {
   min-height: 38px;
   border: 1px solid #c8d2d7;
@@ -103,6 +110,17 @@ a:hover {
   border-color: rgba(11, 122, 117, 0.38);
   color: var(--accent-strong);
   background: rgba(11, 122, 117, 0.09);
+}
+
+.language-toggle {
+  min-width: 42px;
+  min-height: 38px;
+  border: 1px solid rgba(11, 122, 117, 0.32);
+  border-radius: 7px;
+  color: var(--accent-strong);
+  background: rgba(11, 122, 117, 0.08);
+  padding: 0 11px;
+  font-weight: 900;
 }
 
 .workspace {
@@ -594,6 +612,51 @@ select {
   margin: 0 0 10px;
 }
 
+.algebra-box h4 {
+  margin: 14px 0 8px;
+  color: var(--ink);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.formula-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.formula-card {
+  border: 1px solid rgba(11, 122, 117, 0.2);
+  border-radius: 7px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.formula-card strong {
+  display: block;
+  color: var(--accent-strong);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.formula-card .formula-latex {
+  overflow-x: auto;
+  color: var(--ink);
+}
+
+.formula-card p {
+  display: block;
+  margin: 7px 0 0;
+  color: #52666d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.reasoning-list {
+  margin: 0 0 12px;
+}
+
 .example-list {
   display: grid;
   gap: 10px;
@@ -748,6 +811,10 @@ select {
   .guide-hero,
   .mode-nav {
     flex-direction: column;
+  }
+
+  .mode-actions {
+    justify-content: flex-start;
   }
 
   .solution-column {

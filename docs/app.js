@@ -9,6 +9,7 @@ const elements = {
     qa: $("#qaSection"),
     tool: $("#toolSection"),
   },
+  languageToggle: $("#languageToggle"),
   modeTabs: $$(".mode-tab"),
   expression: $("#expression"),
   expressionLabel: $("#expressionLabel"),
@@ -85,6 +86,130 @@ let currentLesson = "zero";
 let lastPlot = null;
 let lastPracticeProblem = null;
 const PRACTICE_SIGNATURE_STORAGE_KEY = "calculus.practice.signatures.v1";
+const LANGUAGE_STORAGE_KEY = "calculus.language.v1";
+let currentLanguage = loadLanguage();
+
+function loadLanguage() {
+  try {
+    const stored = window.localStorage?.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored && window.CALCULUS_I18N?.[stored]) return stored;
+  } catch {
+    // Ignore private browsing or storage-denied modes.
+  }
+  return "zh-CN";
+}
+
+function messages() {
+  return window.CALCULUS_I18N?.[currentLanguage]?.ui || window.CALCULUS_I18N?.["zh-CN"]?.ui || {};
+}
+
+function t(key, fallback = "") {
+  const parts = key.split(".");
+  let value = messages();
+  for (const part of parts) value = value?.[part];
+  return value ?? fallback ?? key;
+}
+
+function setLanguage(language) {
+  currentLanguage = window.CALCULUS_I18N?.[language] ? language : "zh-CN";
+  document.documentElement.lang = currentLanguage;
+  try {
+    window.localStorage?.setItem(LANGUAGE_STORAGE_KEY, currentLanguage);
+  } catch {
+    // Ignore storage errors.
+  }
+  applyTranslations();
+  renderPalettes();
+  renderCommonExamples();
+  renderLessons();
+  updateQaBounds();
+  if (lastPlot) drawPlot(lastPlot);
+}
+
+function toggleLanguage() {
+  setLanguage(currentLanguage === "zh-CN" ? "en-US" : "zh-CN");
+}
+
+function applyTranslations() {
+  document.title = "Calculus Studio";
+  elements.languageToggle.textContent = t("languageToggle", currentLanguage === "zh-CN" ? "EN" : "中");
+  elements.languageToggle.setAttribute("aria-label", currentLanguage === "zh-CN" ? "Switch to English" : "切换到中文");
+  $("h1").textContent = t("appTitle", "可视化积分学习系统");
+  const tabLabels = ["navLearn", "navPractice", "navQa", "navTool"];
+  elements.modeTabs.forEach((tab, index) => {
+    tab.textContent = t(tabLabels[index], tab.textContent);
+  });
+  $(".control-panel h2").textContent = t("toolTitle", "积分工作台");
+  $("label[for='mode']").textContent = t("integralType", "积分类型");
+  for (const button of elements.modeButtons) button.textContent = t(`modes.${button.dataset.mode}`, button.textContent);
+  $("label[for='lower']").textContent = t("lower", "下限");
+  $("label[for='upper']").textContent = t("upper", "上限");
+  $("label[for='xLower']").textContent = t("xLower", "x 下限");
+  $("label[for='xUpper']").textContent = t("xUpper", "x 上限");
+  $("label[for='yLower']").textContent = t("yLower", "y 下限");
+  $("label[for='yUpper']").textContent = t("yUpper", "y 上限");
+  $("label[for='innerExpression']").textContent = t("innerRadius", "内半径 r_in(theta)");
+  $("label[for='rLower']").textContent = t("rLower", "r 下限");
+  $("label[for='rUpper']").textContent = t("rUpper", "r 上限");
+  $("label[for='thetaLower']").textContent = t("thetaLower", "theta 下限");
+  $("label[for='thetaUpper']").textContent = t("thetaUpper", "theta 上限");
+  $(".polar-bounds-grid .field-help").textContent = t("polarHelp", "极坐标请使用 theta 表示角度，r 表示极径。");
+  const toolFreeLabels = $$(".control-panel label:not([for])");
+  if (toolFreeLabels[0]) toolFreeLabels[0].textContent = t("templates", "输入模板");
+  if (toolFreeLabels[1]) toolFreeLabels[1].textContent = t("commonExamples", "常用模板");
+  elements.calculate.querySelector("span:last-child").textContent = t("calculate", "计算并可视化");
+  if (elements.statusLine.textContent === "就绪" || elements.statusLine.textContent === "Ready") elements.statusLine.textContent = t("ready", "就绪");
+  $(".plot-toolbar .eyebrow").textContent = t("graph", "Graph");
+  const resultLabels = $$(".result-row span");
+  if (resultLabels[0]) resultLabels[0].textContent = t("status", "状态");
+  if (resultLabels[1]) resultLabels[1].textContent = t("exact", "精确值");
+  if (resultLabels[2]) resultLabels[2].textContent = t("numeric", "数值近似");
+  elements.fourthResultLabel.textContent = t("antiderivative", "原函数");
+  if (resultLabels[4]) resultLabels[4].textContent = t("errorEstimate", "误差估计");
+  $(".study-section .guide-hero h2").textContent = t("learnTitle", "从零开始理解积分");
+  $(".study-section .guide-lede").textContent = t("learnLead", "每一节都先解释直觉，再解释符号，最后用图像和例题把公式落到可见的面积或体积上。");
+  $("#practiceSection .guide-hero h2").textContent = t("practiceTitle", "练习模式");
+  $("#practiceSection .guide-lede").textContent = t("practiceLead", "选择积分种类和难度，系统会生成通过后端校验的题目，并给出方法、代数步骤和图形。");
+  elements.generatePractice.textContent = t("generate", "生成题目");
+  if (!lastPracticeProblem) {
+    elements.practiceProblem.innerHTML = `<strong>${t("noProblem", "还没有题目")}</strong><p>${t("noProblemBody", "选择类型和难度后点击“生成题目”。")}</p>`;
+    elements.practiceSolutionTitle.textContent = t("waiting", "等待生成");
+    elements.practiceSolutionBody.innerHTML = `<p>${t("generatedBody", "生成后会显示方法说明、书面计算步骤和答案。")}</p>`;
+  }
+  $("#qaSection .guide-hero h2").textContent = t("qaTitle", "问答模式");
+  $("#qaSection .guide-lede").textContent = t("qaLead", "输入自己的题目。推荐先选题型，再填函数和上下限；这比完整自然语言输入更稳定。");
+  $("label[for='qaRaw']").textContent = t("rawProblem", "完整题目（可选）");
+  elements.qaRaw.placeholder = t("rawPlaceholder", "例如: ∫_0^1 x^2 dx 或 ∫_1^oo 1/x^2 dx");
+  $("label[for='qaMode']").textContent = t("problemType", "题型");
+  $("label[for='qaLower']").textContent = t("lower", "下限");
+  $("label[for='qaUpper']").textContent = t("upper", "上限");
+  $("label[for='qaXLower']").textContent = t("xLower", "x 下限");
+  $("label[for='qaXUpper']").textContent = t("xUpper", "x 上限");
+  $("label[for='qaYLower']").textContent = t("yLower", "y 下限");
+  $("label[for='qaYUpper']").textContent = t("yUpper", "y 上限");
+  $("label[for='qaInnerExpression']").textContent = t("innerRadius", "内半径 r_in(theta)");
+  $("label[for='qaRLower']").textContent = t("rLower", "r 下限");
+  $("label[for='qaRUpper']").textContent = t("rUpper", "r 上限");
+  $("label[for='qaThetaLower']").textContent = t("thetaLower", "theta 下限");
+  $("label[for='qaThetaUpper']").textContent = t("thetaUpper", "theta 上限");
+  $("#qaPolarHelp").textContent = t(
+    "qaPolarHelp",
+    "极坐标面积请输入外半径 r(theta)；极坐标二重积分请输入 f(r, theta)，系统会自动乘雅可比 r。",
+  );
+  const qaFreeLabels = $$("#qaSection label:not([for])");
+  if (qaFreeLabels[0]) qaFreeLabels[0].textContent = t("quickInput", "快速输入");
+  elements.askQuestion.textContent = t("ask", "解答并显示步骤");
+  elements.qaSolutionTitle.textContent = t("waitingInput", "等待输入");
+  elements.qaSolutionBody.innerHTML = `<p>${t("qaWaitingBody", "这里会显示方法识别、计算步骤、答案和可视化结果。")}</p>`;
+  $(".source-strip span").textContent = t("references", "参考路线");
+  updateSelectLabels();
+}
+
+function updateSelectLabels() {
+  for (const option of elements.practiceKind.options) option.textContent = t(`modes.${option.value}`, option.textContent);
+  for (const option of elements.qaMode.options) option.textContent = t(`modes.${option.value}`, option.textContent);
+  for (const option of elements.practiceLevel.options) option.textContent = t(`levels.${option.value}`, option.textContent);
+}
 
 function apiBaseUrl() {
   const configured = window.CALCULUS_API_BASE || "";
@@ -503,6 +628,7 @@ function formatNumber(value) {
 function requestPayload() {
   return {
     mode: currentMode,
+    language: currentLanguage,
     expression: elements.expression.value,
     lower: elements.lower.value,
     upper: elements.upper.value,
@@ -522,6 +648,7 @@ function requestPayload() {
 function payloadFromProblem(item) {
   return {
     mode: item.mode,
+    language: currentLanguage,
     expression: item.expression,
     lower: item.lower ?? "0",
     upper: item.upper ?? "1",
@@ -545,13 +672,13 @@ async function solve(payload) {
     body: JSON.stringify(payload),
   });
   const data = await response.json();
-  if (!data.ok) throw new Error(data.error || "计算失败");
+  if (!data.ok) throw new Error(data.error || (currentLanguage === "en-US" ? "Calculation failed" : "计算失败"));
   return data;
 }
 
 async function calculate() {
   elements.calculate.disabled = true;
-  elements.statusLine.textContent = "计算中";
+  elements.statusLine.textContent = t("calculating", "计算中");
   setMessages([]);
   try {
     const payload = requestPayload();
@@ -561,13 +688,13 @@ async function calculate() {
       body: JSON.stringify(payload),
     });
     const result = await response.json();
-    if (!result.ok) throw new Error(result.error || "计算失败");
+    if (!result.ok) throw new Error(result.error || (currentLanguage === "en-US" ? "Calculation failed" : "计算失败"));
     renderResult(result);
-    elements.statusLine.textContent = "完成";
+    elements.statusLine.textContent = t("done", "完成");
   } catch (error) {
     clearResult();
     setMessages([error.message], true);
-    elements.statusLine.textContent = "输入需要调整";
+    elements.statusLine.textContent = t("adjustInput", "输入需要调整");
   } finally {
     elements.calculate.disabled = false;
   }
@@ -592,7 +719,7 @@ function clearResult() {
   elements.errorResult.textContent = "-";
   elements.statusResult.textContent = "-";
   elements.numericChip.textContent = "-";
-  elements.engineBadge.textContent = "待机";
+  elements.engineBadge.textContent = currentLanguage === "en-US" ? "Idle" : "待机";
 }
 
 function renderResult(payload) {
@@ -613,19 +740,19 @@ function renderResult(payload) {
   elements.numericChip.textContent = payload.mode === "improper" ? statusLabel(payload.improper?.status) : numeric;
 
   if (payload.mode === "polar_area") {
-    elements.statusResult.textContent = "极坐标面积";
+    elements.statusResult.textContent = t("modes.polar_area", "极坐标面积");
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ polar" : "SciPy polar";
-    elements.fourthResultLabel.textContent = "极坐标区域";
+    elements.fourthResultLabel.textContent = t("region", "区域");
     elements.antiderivativeResult.textContent = payload.polar?.region_text || "r(theta)";
   } else if (payload.mode === "polar_double") {
-    elements.statusResult.textContent = "极坐标二重积分";
+    elements.statusResult.textContent = t("modes.polar_double", "极坐标二重");
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ polar 2D" : "SciPy polar";
-    elements.fourthResultLabel.textContent = "极坐标区域";
+    elements.fourthResultLabel.textContent = t("region", "区域");
     elements.antiderivativeResult.textContent = payload.polar?.region_text || "r-theta region";
   } else if (payload.mode === "double") {
-    elements.statusResult.textContent = "二重积分";
+    elements.statusResult.textContent = t("modes.double", "二重积分");
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ 2D" : "SciPy 2D";
-    elements.fourthResultLabel.textContent = "区域";
+    elements.fourthResultLabel.textContent = t("region", "区域");
     elements.antiderivativeResult.textContent = payload.double?.region_text || "矩形区域";
   } else if (payload.mode === "improper") {
     elements.statusResult.textContent = statusLabel(payload.improper?.status);
@@ -633,19 +760,19 @@ function renderResult(payload) {
     elements.fourthResultLabel.textContent = "原函数";
     elements.antiderivativeResult.textContent = payload.antiderivative?.available ? `${payload.antiderivative.text} + C` : "未得到闭式";
   } else if (payload.mode === "indefinite") {
-    elements.statusResult.textContent = "不定积分";
+    elements.statusResult.textContent = t("modes.indefinite", "不定积分");
     elements.engineBadge.textContent = "SymPy";
     elements.exactResult.textContent = "-";
     elements.numericResult.textContent = "-";
     elements.errorResult.textContent = "-";
     elements.numericChip.textContent = "F(x)";
-    elements.fourthResultLabel.textContent = "原函数";
-    elements.antiderivativeResult.textContent = payload.antiderivative?.available ? `${payload.antiderivative.text} + C` : "未得到闭式";
+    elements.fourthResultLabel.textContent = t("antiderivative", "原函数");
+    elements.antiderivativeResult.textContent = payload.antiderivative?.available ? `${payload.antiderivative.text} + C` : (currentLanguage === "en-US" ? "No closed form" : "未得到闭式");
   } else {
-    elements.statusResult.textContent = "有限区间";
+    elements.statusResult.textContent = t("modes.definite", "定积分");
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++" : "SciPy";
-    elements.fourthResultLabel.textContent = "原函数";
-    elements.antiderivativeResult.textContent = payload.antiderivative?.available ? `${payload.antiderivative.text} + C` : "未得到闭式";
+    elements.fourthResultLabel.textContent = t("antiderivative", "原函数");
+    elements.antiderivativeResult.textContent = payload.antiderivative?.available ? `${payload.antiderivative.text} + C` : (currentLanguage === "en-US" ? "No closed form" : "未得到闭式");
   }
 
   const messages = [...(payload.warnings || [])];
@@ -656,18 +783,33 @@ function renderResult(payload) {
 }
 
 function statusLabel(status) {
-  return { convergent: "收敛", divergent: "发散", unknown: "待判定" }[status] || "-";
+  return t(`statusLabels.${status}`, { convergent: "收敛", divergent: "发散", unknown: "待判定" }[status] || "-");
 }
 
-function renderSolution(containerTitle, containerBody, payload, title = "解答") {
+function renderSolution(containerTitle, containerBody, payload, title = t("solutionTitle", "解答")) {
   containerTitle.textContent = title;
   const steps = (payload.steps || []).map((step) => `<li>${step}</li>`).join("");
   const algebra = payload.algebra_steps || {};
   const algebraNotes = (algebra.notes || []).map((note) => `<li>${note}</li>`).join("");
+  const formulaCards = (algebra.formula_cards || [])
+    .map(
+      (card) => `
+        <article class="formula-card">
+          <strong>${card.title}</strong>
+          <div class="formula-latex">\\[${card.latex || ""}\\]</div>
+          <p>${card.explanation || ""}</p>
+        </article>
+      `,
+    )
+    .join("");
+  const reasoningSteps = (algebra.reasoning_steps || []).map((step) => `<li>${step}</li>`).join("");
   const algebraHtml = algebra.available
     ? `
       <div class="formula-box algebra-box">
-        <p><strong>代数推导：</strong><span class="tag">${algebraLabel(algebra.explainability)}</span></p>
+        <p><strong>${t("algebraDerivation", "代数推导：")}</strong><span class="tag">${algebraLabel(algebra.explainability)}</span></p>
+        ${formulaCards ? `<h4>${t("formulasUsed", "本题用到的公式")}</h4><div class="formula-card-grid">${formulaCards}</div>` : ""}
+        ${reasoningSteps ? `<h4>${t("whyItWorks", "为什么这样做")}</h4><ol class="reasoning-list">${reasoningSteps}</ol>` : ""}
+        <h4>${t("writtenSteps", "书面步骤")}</h4>
         \\[${algebra.latex || ""}\\]
         ${algebraNotes ? `<ul class="symbol-list">${algebraNotes}</ul>` : ""}
       </div>
@@ -677,17 +819,17 @@ function renderSolution(containerTitle, containerBody, payload, title = "解答"
       : "";
   containerBody.innerHTML = `
     <div class="formula-box">\\[${payload.statement_latex || ""}\\]</div>
-    <p><strong>推荐方法：</strong>${payload.method || "符号计算 + 数值核验"}</p>
+    <p><strong>${t("recommendedMethod", "推荐方法：")}</strong>${payload.method || (currentLanguage === "en-US" ? "Symbolic computation + numerical verification" : "符号计算 + 数值核验")}</p>
     <p>${payload.method_explanation || ""}</p>
     ${algebraHtml}
     <ol>${steps}</ol>
-    <div class="solution-result">答案：\\(${payload.result_latex || "-"}\\)</div>
+    <div class="solution-result">${t("answer", "答案：")}\\(${payload.result_latex || "-"}\\)</div>
   `;
   typesetMath();
 }
 
 function algebraLabel(value) {
-  return { full: "完整推导", partial: "部分推导", "result-only": "结果校验" }[value] || value || "推导";
+  return { full: t("full", "完整推导"), partial: t("partial", "部分推导"), "result-only": t("resultOnly", "结果校验") }[value] || value || t("writtenSteps", "推导");
 }
 
 function applyProblem(item) {
@@ -710,38 +852,64 @@ async function solveProblem(item, titleNode, bodyNode, scroll = false) {
   applyProblem(item);
   const result = await solve(payloadFromProblem(item));
   renderResult(result);
-  renderSolution(titleNode, bodyNode, result, item.title);
+  renderSolution(titleNode, bodyNode, result, localizedCannedTitle(item.id));
   if (scroll) elements.sections.tool.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function activeLessons() {
+  return window.CALCULUS_I18N?.[currentLanguage]?.lessons || lessons;
+}
+
+function localizedCannedTitle(id) {
+  const english = {
+    powerArea: "Power function area",
+    sinArea: "Sine half-wave area",
+    uSub: "Substitution",
+    parts: "Integration by parts",
+    pConverges: "Convergent p-integral",
+    pDiverges: "Divergent harmonic tail",
+    endpoint: "Endpoint singularity",
+    doubleXY: "Double integral volume",
+    paraboloid: "Paraboloid volume",
+    gaussian: "Gaussian surface window",
+    polarCircle: "Polar circle area",
+    polarRose: "Rose curve petal",
+    polarDoubleUnit: "Polar double integral",
+  };
+  const item = cannedProblems[id];
+  return currentLanguage === "en-US" ? english[id] || item?.title || id : item?.title || id;
 }
 
 function renderCommonExamples() {
   const ids = ["powerArea", "sinArea", "pConverges", "endpoint", "doubleXY", "paraboloid", "polarCircle", "polarRose"];
   elements.examples.innerHTML = ids
     .map((id) => {
-      const item = cannedProblems[id];
-      return `<button type="button" data-example="${id}">${item.title}</button>`;
+      return `<button type="button" data-example="${id}">${localizedCannedTitle(id)}</button>`;
     })
     .join("");
 }
 
 function renderPalettes() {
-  const html = quickTemplates.map((item) => `<button type="button" data-insert="${item.insert}">${item.label}</button>`).join("");
+  const localized = {
+    "分数": currentLanguage === "en-US" ? "frac" : "分数",
+  };
+  const html = quickTemplates.map((item) => `<button type="button" data-insert="${item.insert}">${localized[item.label] || item.label}</button>`).join("");
   elements.palette.innerHTML = html;
   elements.qaPalette.innerHTML = html;
 }
 
 function renderLessons() {
-  elements.lessonTabs.innerHTML = lessons
+  const lessonSet = activeLessons();
+  elements.lessonTabs.innerHTML = lessonSet
     .map((lesson) => `<button class="guide-tab${lesson.id === currentLesson ? " active" : ""}" data-lesson="${lesson.id}" type="button">${lesson.title}</button>`)
     .join("");
-  const lesson = lessons.find((item) => item.id === currentLesson) || lessons[0];
+  const lesson = lessonSet.find((item) => item.id === currentLesson) || lessonSet[0];
   elements.lessonContent.innerHTML = lesson.cards
     .map((card) => {
       const symbols = card.symbols.map((s) => `<li>${s}</li>`).join("");
       const examples = card.examples
         .map((id) => {
-          const item = cannedProblems[id];
-          return `<button class="mini-action" type="button" data-lesson-problem="${id}">${item.title}</button>`;
+          return `<button class="mini-action" type="button" data-lesson-problem="${id}">${localizedCannedTitle(id)}</button>`;
         })
         .join("");
       return `
@@ -781,19 +949,19 @@ async function drawMiniVisuals() {
 function renderPracticeProblem(item, result, meta = {}) {
   const concepts = (meta.concepts || item.concepts || []).slice(0, 3);
   const conceptTags = concepts.map((concept) => `<span class="tag">${concept}</span>`).join("");
-  const seedTag = meta.seed ? `<span class="tag">种子 ${String(meta.seed).slice(0, 8)}</span>` : "";
-  const capacityTag = meta.capacity_estimate ? `<span class="tag">候选约 ${formatNumber(meta.capacity_estimate)}</span>` : "";
+  const seedTag = meta.seed ? `<span class="tag">${t("seed", "种子")} ${String(meta.seed).slice(0, 8)}</span>` : "";
+  const capacityTag = meta.capacity_estimate ? `<span class="tag">${t("capacity", "候选约")} ${formatNumber(meta.capacity_estimate)}</span>` : "";
   elements.practiceProblem.innerHTML = `
     <strong>${item.title}</strong>
     <span class="tag">${kindLabel(item.mode)} · ${levelLabel(item.level || elements.practiceLevel.value)}</span>
     ${conceptTags}
     ${seedTag}
     ${capacityTag}
-    <p class="practice-target">${item.target || "根据题目结构选择可靠方法，并用计算结果校验。"}</p>
+    <p class="practice-target">${item.target || (currentLanguage === "en-US" ? "Choose a reliable method and verify the result." : "根据题目结构选择可靠方法，并用计算结果校验。")}</p>
     <div class="formula-box">\\[${item.statement || result.statement_latex}\\]</div>
     <div class="example-actions">
-      <button class="mini-action" type="button" id="practiceVisualize">查看上方图像</button>
-      <button class="mini-action" type="button" id="practiceRegenerate">再来一题</button>
+      <button class="mini-action" type="button" id="practiceVisualize">${t("visualize", "查看上方图像")}</button>
+      <button class="mini-action" type="button" id="practiceRegenerate">${t("regenerate", "再来一题")}</button>
     </div>
   `;
   $("#practiceVisualize")?.addEventListener("click", () => elements.sections.tool.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -804,8 +972,8 @@ function renderPracticeProblem(item, result, meta = {}) {
 async function generatePractice() {
   const kind = elements.practiceKind.value;
   const level = elements.practiceLevel.value;
-  elements.practiceSolutionTitle.textContent = "正在生成";
-  elements.practiceSolutionBody.innerHTML = "<p>正在从后端随机生成题目、去重并校验解答...</p>";
+  elements.practiceSolutionTitle.textContent = t("generating", "正在生成");
+  elements.practiceSolutionBody.innerHTML = `<p>${t("generatingBody", "正在从后端随机生成题目、去重并校验解答...")}</p>`;
   elements.generatePractice.disabled = true;
   try {
     const response = await fetch(apiUrl("/api/practice/generate"), {
@@ -814,12 +982,13 @@ async function generatePractice() {
       body: JSON.stringify({
         kind,
         level,
+        language: currentLanguage,
         avoid_signatures: loadPracticeSignatures(),
         max_attempts: 160,
       }),
     });
     const data = await response.json();
-    if (!data.ok) throw new Error(data.error || "题目生成失败");
+    if (!data.ok) throw new Error(data.error || (currentLanguage === "en-US" ? "Problem generation failed" : "题目生成失败"));
     rememberPracticeSignature(data.signature);
     const item = data.problem;
     const result = data.solution;
@@ -829,7 +998,7 @@ async function generatePractice() {
     renderPracticeProblem(item, result, data);
     renderSolution(elements.practiceSolutionTitle, elements.practiceSolutionBody, result, item.title);
   } catch (error) {
-    elements.practiceSolutionTitle.textContent = "生成失败";
+    elements.practiceSolutionTitle.textContent = t("generateFailed", "生成失败");
     elements.practiceSolutionBody.innerHTML = `<div class="message error">${error.message}</div>`;
   } finally {
     elements.generatePractice.disabled = false;
@@ -837,19 +1006,11 @@ async function generatePractice() {
 }
 
 function kindLabel(kind) {
-  return {
-    definite: "定积分",
-    indefinite: "不定积分",
-    improper: "反常积分",
-    double: "二重积分",
-    polar: "极坐标积分",
-    polar_area: "极坐标面积",
-    polar_double: "极坐标二重积分",
-  }[kind] || kind;
+  return t(`modes.${kind}`, kind);
 }
 
 function levelLabel(level) {
-  return { easy: "简单", ap: "AP", advanced: "高等技巧", mit: "MIT/挑战" }[level] || level;
+  return t(`levels.${level}`, level);
 }
 
 function qaPayload() {
@@ -857,6 +1018,7 @@ function qaPayload() {
     return {
       raw: elements.qaRaw.value,
       mode: elements.qaMode.value,
+      language: currentLanguage,
       expression: elements.qaExpression.value,
       lower: elements.qaLower.value,
       upper: elements.qaUpper.value,
@@ -873,6 +1035,7 @@ function qaPayload() {
   }
   return {
     mode: elements.qaMode.value,
+    language: currentLanguage,
     expression: elements.qaExpression.value,
     lower: elements.qaLower.value,
     upper: elements.qaUpper.value,
@@ -889,8 +1052,8 @@ function qaPayload() {
 }
 
 async function askQuestion() {
-  elements.qaSolutionTitle.textContent = "正在解答";
-  elements.qaSolutionBody.innerHTML = "<p>正在解析题目、计算并生成步骤...</p>";
+  elements.qaSolutionTitle.textContent = t("solving", "正在解答");
+  elements.qaSolutionBody.innerHTML = `<p>${t("solvingBody", "正在解析题目、计算并生成步骤...")}</p>`;
   try {
     const result = await solve(qaPayload());
     applyProblem({
@@ -909,9 +1072,9 @@ async function askQuestion() {
       thetaUpper: result.bounds?.theta_upper,
     });
     renderResult(result);
-    renderSolution(elements.qaSolutionTitle, elements.qaSolutionBody, result, "问答解答");
+    renderSolution(elements.qaSolutionTitle, elements.qaSolutionBody, result, currentLanguage === "en-US" ? "Q&A Solution" : "问答解答");
   } catch (error) {
-    elements.qaSolutionTitle.textContent = "无法解答";
+    elements.qaSolutionTitle.textContent = t("cannotSolve", "无法解答");
     elements.qaSolutionBody.innerHTML = `<div class="message error">${error.message}</div>`;
   }
 }
@@ -926,7 +1089,11 @@ function updateQaBounds() {
   elements.qaPolarBounds.style.display = isPolar ? "grid" : "none";
   for (const node of elements.qaPolarAreaFields) node.style.display = isPolarArea ? "grid" : "none";
   for (const node of elements.qaPolarDoubleFields) node.style.display = isPolarDouble ? "grid" : "none";
-  elements.qaExpressionLabel.textContent = isPolarArea ? "外半径 r_out(theta)" : isPolarDouble ? "函数 f(r, theta)" : "函数表达式";
+  elements.qaExpressionLabel.textContent = isPolarArea
+    ? (currentLanguage === "en-US" ? "Outer radius r_out(theta)" : "外半径 r_out(theta)")
+    : isPolarDouble
+      ? (currentLanguage === "en-US" ? "Function f(r, theta)" : "函数 f(r, theta)")
+      : t("expression", "函数表达式");
   if (isPolarArea && elements.qaExpression.value === "x^2") elements.qaExpression.value = "2*sin(theta)";
   if (isPolarDouble && elements.qaExpression.value === "x^2") elements.qaExpression.value = "1";
 }
@@ -1372,16 +1539,18 @@ function bindEvents() {
   });
   elements.generatePractice.addEventListener("click", generatePractice);
   elements.practiceKind.addEventListener("change", () => {
-    elements.practiceProblem.innerHTML = "<strong>还没有题目</strong><p>点击生成题目。</p>";
+    elements.practiceProblem.innerHTML = `<strong>${t("noProblem", "还没有题目")}</strong><p>${t("noProblemBody", "选择类型和难度后点击“生成题目”。")}</p>`;
   });
   elements.askQuestion.addEventListener("click", askQuestion);
   elements.qaMode.addEventListener("change", updateQaBounds);
+  elements.languageToggle.addEventListener("click", toggleLanguage);
   window.addEventListener("resize", () => {
     if (lastPlot) drawPlot(lastPlot);
   });
 }
 
 function init() {
+  applyTranslations();
   renderPalettes();
   renderCommonExamples();
   renderLessons();

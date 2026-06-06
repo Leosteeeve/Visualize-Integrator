@@ -30,8 +30,27 @@ def main():
         lambda r: r["ok"]
         and r["algebra_steps"]["available"]
         and r["algebra_steps"]["recipe_id"] == "u_sub_cos_power_sin"
+        and len(r["algebra_steps"]["formula_cards"]) >= 2
+        and len(r["algebra_steps"]["reasoning_steps"]) >= 2
         and r"\int_{0}^{1}u^{5}" in r["algebra_steps"]["latex"]
         and r["result_latex"] == r"\frac{1}{6}",
+    )
+    check(
+        "algebra trig power reduction",
+        {"mode": "definite", "expression": "sin(x)^2", "lower": "0", "upper": "pi"},
+        lambda r: r["ok"]
+        and r["algebra_steps"]["available"]
+        and r["algebra_steps"]["recipe_id"] == "trig_power_reduction"
+        and any(r"\sin^2x" in card["latex"] for card in r["algebra_steps"]["formula_cards"])
+        and r["result_latex"] == r"\frac{\pi}{2}",
+    )
+    check(
+        "algebra product to sum",
+        {"mode": "definite", "expression": "sin(2*x)*cos(3*x)", "lower": "0", "upper": "pi"},
+        lambda r: r["ok"]
+        and r["algebra_steps"]["available"]
+        and r["algebra_steps"]["recipe_id"] == "trig_product_to_sum"
+        and len(r["algebra_steps"]["formula_cards"]) >= 3,
     )
     check(
         "algebra trig absolute split",
@@ -39,8 +58,25 @@ def main():
         lambda r: r["ok"]
         and r["algebra_steps"]["available"]
         and r["algebra_steps"]["recipe_id"] == "trig_identity_abs_piecewise"
+        and any("Absolute value" in card["title"] or "绝对值" in card["title"] for card in r["algebra_steps"]["formula_cards"])
         and r"\frac45" in r["algebra_steps"]["latex"]
         and len(r["algebra_steps"]["notes"]) == 2,
+    )
+    check(
+        "english solve localization",
+        {
+            "mode": "definite",
+            "expression": "cos(x)^5*sin(x)",
+            "lower": "0",
+            "upper": "pi/2",
+            "language": "en-US",
+        },
+        lambda r: r["ok"]
+        and r["language"] == "en-US"
+        and r["method"] == "Substitution"
+        and r["algebra_steps"]["language"] == "en-US"
+        and r["algebra_steps"]["formula_cards"][0]["title"] == "Substitution"
+        and "换元" not in r["method"],
     )
     check(
         "improper convergent",
