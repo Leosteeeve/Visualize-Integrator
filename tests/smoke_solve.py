@@ -195,6 +195,26 @@ def main():
         lambda r: r["ok"] and r["result_latex"] == r"\frac{\pi}{2}",
     )
     check(
+        "solid washer x",
+        {"mode": "solid_revolution", "solidPreset": "washer_x", "expression": "x", "innerExpression": "0", "lower": "0", "upper": "1"},
+        lambda r: r["ok"] and r["result_latex"] == r"\frac{\pi}{3}" and r["plot"]["kind"] == "solid_revolution" and r["algebra_steps"]["recipe_id"] == "solid_washer",
+    )
+    check(
+        "solid annular washer",
+        {"mode": "solid_revolution", "solidPreset": "washer_x", "expression": "2", "innerExpression": "1", "lower": "0", "upper": "3"},
+        lambda r: r["ok"] and r["result_latex"] == r"9 \pi" and r["algebra_steps"]["recipe_id"] == "solid_washer",
+    )
+    check(
+        "solid shell y",
+        {"mode": "solid_revolution", "solidPreset": "shell_y", "expression": "1-x", "innerExpression": "0", "lower": "0", "upper": "1"},
+        lambda r: r["ok"] and r["result_latex"] == r"\frac{\pi}{3}" and r["algebra_steps"]["recipe_id"] == "solid_shell",
+    )
+    check(
+        "solid washer y",
+        {"mode": "solid_revolution", "solidPreset": "washer_y", "expression": "y", "innerExpression": "0", "lower": "0", "upper": "1"},
+        lambda r: r["ok"] and r["result_latex"] == r"\frac{\pi}{3}" and r["algebra_steps"]["recipe_id"] == "solid_washer",
+    )
+    check(
         "raw definite input",
         {"raw": "\u222b_0^1 x^2 dx"},
         lambda r: r["ok"] and r["mode"] == "definite" and r["result_latex"] == r"\frac{1}{3}",

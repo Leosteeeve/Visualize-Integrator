@@ -51,6 +51,10 @@ TAG_TRANSLATIONS = {
     "扇形微元": "sector area element",
     "极坐标二重积分": "polar double integral",
     "雅可比": "Jacobian",
+    "旋转体": "solid of revolution",
+    "圆盘法": "disk method",
+    "垫片法": "washer method",
+    "柱壳法": "shell method",
     "降幂公式": "power-reduction identity",
     "积化和差": "product-to-sum identity",
     "幂函数公式": "power rule",
@@ -192,6 +196,26 @@ FORMULA_CARDS = {
         "zh-CN": [("极坐标雅可比", r"dA=r\,dr\,d\theta", r"离原点越远，同样角度扫出的弧越长，所以多出因子 \(r\)。")],
         "en-US": [("Polar Jacobian", r"dA=r\,dr\,d\theta", r"Farther from the origin, the same angle sweeps a longer arc, creating the factor \(r\).")],
     },
+    "solid_washer": {
+        "zh-CN": [
+            ("圆盘/垫片法", r"V=\pi\int_a^b\left(R(u)^2-r(u)^2\right)\,du", r"垂直于旋转轴切片时，每一片的截面是外圆盘减内圆盘。"),
+            ("截面积", r"A(u)=\pi R(u)^2-\pi r(u)^2", "体积就是这些很薄的截面积沿变量方向累加。"),
+        ],
+        "en-US": [
+            ("Disk/washer method", r"V=\pi\int_a^b\left(R(u)^2-r(u)^2\right)\,du", "A slice perpendicular to the rotation axis is an outer disk minus an inner disk."),
+            ("Cross-sectional area", r"A(u)=\pi R(u)^2-\pi r(u)^2", "The volume is the accumulated area of those thin slices."),
+        ],
+    },
+    "solid_shell": {
+        "zh-CN": [
+            ("柱壳法", r"V=2\pi\int_a^b(\text{半径})(\text{高度})\,du", "平行于旋转轴的薄条旋转后形成薄柱壳。"),
+            ("薄壳体积", r"dV\approx 2\pi(\text{半径})(\text{高度})\,du", "周长乘高度得到侧面积，再乘厚度得到薄壳体积。"),
+        ],
+        "en-US": [
+            ("Shell method", r"V=2\pi\int_a^b(\text{radius})(\text{height})\,du", "A strip parallel to the rotation axis sweeps out a thin cylindrical shell."),
+            ("Thin-shell volume", r"dV\approx 2\pi(\text{radius})(\text{height})\,du", "Circumference times height gives lateral area, then multiply by thickness."),
+        ],
+    },
 }
 
 
@@ -259,6 +283,14 @@ REASONING_STEPS = {
     "polar_double_jacobian": {
         "zh-CN": ["极坐标二重积分仍然是在平面区域上累积函数值。", r"从直角坐标换到极坐标时，面积微元变成 \(dA=r\,dr\,d\theta\)，所以被积函数必须乘 \(r\)。"],
         "en-US": ["A polar double integral still accumulates a function over a planar region.", r"Changing from Cartesian to polar coordinates gives \(dA=r\,dr\,d\theta\), so the integrand must be multiplied by \(r\)."],
+    },
+    "solid_washer": {
+        "zh-CN": ["先判断切片方向：圆盘/垫片法的切片垂直于旋转轴。", r"外半径 \(R\) 和内半径 \(r\) 都是到旋转轴的距离。", r"把每片面积 \(\pi(R^2-r^2)\) 从下限累加到上限。"],
+        "en-US": ["First choose the slice direction: washers are perpendicular to the rotation axis.", r"The outer radius \(R\) and inner radius \(r\) are distances to the axis of rotation.", r"Accumulate each cross-sectional area \(\pi(R^2-r^2)\) from the lower bound to the upper bound."],
+    },
+    "solid_shell": {
+        "zh-CN": ["柱壳法的切片平行于旋转轴。", "每个薄条旋转成一个薄柱壳：半径来自到旋转轴的距离，高度来自两条曲线的差。", r"把 \(2\pi\cdot 半径\cdot 高度\) 从下限累加到上限。"],
+        "en-US": ["Shell slices are parallel to the rotation axis.", "Each strip sweeps out a thin shell: radius is distance to the axis, height is the difference between the curves.", r"Accumulate \(2\pi\cdot\text{radius}\cdot\text{height}\) from the lower bound to the upper bound."],
     },
 }
 
@@ -1034,6 +1066,47 @@ def build_polar_double(
     )
 
 
+def build_solid_revolution(
+    integration: dict[str, Any],
+    statement_latex: str,
+    final_latex: str,
+) -> dict[str, Any] | None:
+    bounds = integration.get("bounds", {})
+    solid = integration.get("solid", {})
+    lower = bounds.get("lower_latex", "a")
+    upper = bounds.get("upper_latex", "b")
+    variable = solid.get("variable", "x")
+    outer = solid.get("outer_latex", "R")
+    inner = solid.get("inner_latex", "0")
+    integrand = solid.get("integrand_latex")
+    antiderivative = integration.get("antiderivative", {})
+    if not integrand:
+        return None
+    if solid.get("method") == "washer":
+        recipe_id = "solid_washer"
+        method_tags = ["旋转体", "垫片法"]
+        setup = rf"V &= \pi\int_{{{lower}}}^{{{upper}}}\left(({outer})^2-({inner})^2\right)\,d{variable}"
+    else:
+        recipe_id = "solid_shell"
+        method_tags = ["旋转体", "柱壳法"]
+        setup = rf"V &= 2\pi\int_{{{lower}}}^{{{upper}}}{variable}\left(({outer})-({inner})\right)\,d{variable}"
+    lines = [
+        setup,
+        rf"&= \int_{{{lower}}}^{{{upper}}}{integrand}\,d{variable}",
+    ]
+    if antiderivative.get("available") and antiderivative.get("latex"):
+        lines.append(rf"&= \left[{antiderivative.get('latex')}\right]_{{{lower}}}^{{{upper}}}")
+    lines.append(rf"&= {final_latex}")
+    return response(
+        available=True,
+        explainability="full",
+        recipe_id=recipe_id,
+        method_tags=method_tags,
+        lines=lines,
+        verified=final_is_verified(integration),
+    )
+
+
 def build_algebra_steps(
     *,
     request: dict[str, Any],
@@ -1082,6 +1155,10 @@ def build_algebra_steps(
             return localize_response(built, str(request.get("language", "zh-CN")))
     elif mode == "polar_double":
         built = build_polar_double(expr, integration, statement_latex, final_latex, r, theta)
+        if built:
+            return localize_response(built, str(request.get("language", "zh-CN")))
+    elif mode == "solid_revolution":
+        built = build_solid_revolution(integration, statement_latex, final_latex)
         if built:
             return localize_response(built, str(request.get("language", "zh-CN")))
 

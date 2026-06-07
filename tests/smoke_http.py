@@ -34,7 +34,9 @@ def main():
         'id="practiceKind"',
         'id="qaRaw"',
         'id="plot"',
+        'id="threePlot"',
         'id="polarBoundsGrid"',
+        'id="solidBoundsGrid"',
         'id="languageToggle"',
         'i18n/en-US.js',
     ]:
@@ -111,6 +113,12 @@ def main():
     )
     expect("http polar solve", polar["ok"] and polar["result_latex"] == r"\pi")
 
+    solid = post_json(
+        "/api/solve",
+        {"mode": "solid_revolution", "solidPreset": "washer_x", "expression": "x", "innerExpression": "0", "lower": "0", "upper": "1"},
+    )
+    expect("http solid solve", solid["ok"] and solid["result_latex"] == r"\frac{\pi}{3}" and solid["plot"]["kind"] == "solid_revolution")
+
     practice = post_json(
         "/api/practice/generate",
         {"kind": "definite", "level": "easy", "seed": "http-practice", "language": "en-US"},
@@ -140,6 +148,12 @@ def main():
         {"kind": "polar", "level": "ap", "seed": "http-polar-practice"},
     )
     expect("http polar practice generate", polar_practice["ok"] and polar_practice["solution"]["ok"])
+
+    solid_practice = post_json(
+        "/api/practice/generate",
+        {"kind": "solid", "level": "ap", "seed": "http-solid-practice"},
+    )
+    expect("http solid practice generate", solid_practice["ok"] and solid_practice["solution"]["ok"])
 
     bad = post_json(
         "/api/solve",

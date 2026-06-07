@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 
-KINDS = ("definite", "indefinite", "improper", "double", "polar")
+KINDS = ("definite", "indefinite", "improper", "double", "polar", "solid")
 LEVELS = ("easy", "ap", "advanced", "mit")
 
 KIND_LABELS = {
@@ -16,6 +16,7 @@ KIND_LABELS = {
     "improper": "反常积分",
     "double": "二重积分",
     "polar": "极坐标积分",
+    "solid": "立体几何积分",
 }
 
 LEVEL_LABELS = {
@@ -118,6 +119,20 @@ def statement_for(problem: dict[str, Any]) -> str:
             rf"\int_{{{tex_bound(problem['yLower'])}}}^{{{tex_bound(problem['yUpper'])}}}"
             rf"{expr}\,dy\,dx"
         )
+    if problem["mode"] == "solid_revolution":
+        inner = tex_expr(problem.get("innerExpression", "0"))
+        variable = "y" if problem.get("solidPreset") in {"washer_y", "shell_x"} else "x"
+        lower = tex_bound(problem["lower"])
+        upper = tex_bound(problem["upper"])
+        if problem.get("solidPreset") in {"washer_x", "washer_y"}:
+            return (
+                rf"\pi\int_{{{lower}}}^{{{upper}}}"
+                rf"\left(({expr})^2-({inner})^2\right)\,d{variable}"
+            )
+        return (
+            rf"2\pi\int_{{{lower}}}^{{{upper}}}"
+            rf"{variable}\left(({expr})-({inner})\right)\,d{variable}"
+        )
     return rf"\int_{{{tex_bound(problem['lower'])}}}^{{{tex_bound(problem['upper'])}}}{expr}\,dx"
 
 
@@ -137,6 +152,7 @@ def problem(
     theta_upper: str | None = None,
     r_lower: str | None = None,
     r_upper: str | None = None,
+    solid_preset: str | None = None,
     target: str,
     recipe_id: str = "auto",
     recipe_params: dict[str, Any] | None = None,
@@ -187,6 +203,15 @@ def problem(
                 "thetaUpper": theta_upper or "2*pi",
             }
         )
+    elif mode == "solid_revolution":
+        item.update(
+            {
+                "solidPreset": solid_preset or "washer_x",
+                "innerExpression": inner_expression or "0",
+                "lower": lower or "0",
+                "upper": upper or "1",
+            }
+        )
     elif mode != "indefinite":
         item.update({"lower": lower or "0", "upper": upper or "1"})
     item["statement"] = statement_for(item)
@@ -226,6 +251,15 @@ def payload_for(problem_item: dict[str, Any]) -> dict[str, Any]:
                 "thetaUpper": problem_item["thetaUpper"],
             }
         )
+    elif problem_item["mode"] == "solid_revolution":
+        payload.update(
+            {
+                "solidPreset": problem_item.get("solidPreset", "washer_x"),
+                "innerExpression": problem_item.get("innerExpression", "0"),
+                "lower": problem_item["lower"],
+                "upper": problem_item["upper"],
+            }
+        )
     elif problem_item["mode"] != "indefinite":
         payload.update({"lower": problem_item["lower"], "upper": problem_item["upper"]})
     return payload
@@ -248,6 +282,7 @@ def signature_for(problem_item: dict[str, Any], kind: str, level: str) -> str:
         problem_item.get("thetaUpper", ""),
         problem_item.get("rLower", ""),
         problem_item.get("rUpper", ""),
+        problem_item.get("solidPreset", ""),
     ]
     return hashlib.sha1("|".join(parts).encode("utf-8")).hexdigest()[:16]
 
@@ -756,7 +791,7 @@ def make_double_mit(rng: random.Random, index: int) -> dict[str, Any]:
     elif index == 8:
         expr, bounds, title = "sin(x^2)*cos(y^2)", ("0", "1", "0", "1"), "菲涅耳乘积曲面"
     else:
-        expr, bounds, title = "exp(-(x+y))*sin(x*y)", ("0", "2", "0", "2"), "衰减耦合振荡"
+        expr, bounds, title = "exp(-x)*sin(y)", ("0", "2", "0", "pi"), "衰减波面窗口"
     return problem(title, "double", expr, x_lower=bounds[0], x_upper=bounds[1], y_lower=bounds[2], y_upper=bounds[3], target="允许数值型曲面体积和特殊函数结果。")
 
 
@@ -855,6 +890,100 @@ def make_polar_mit(rng: random.Random, index: int) -> dict[str, Any]:
     return problem("极坐标螺线加权", "polar_double", "r^2", r_lower="0", r_upper=f"{a}*theta", theta_lower="0", theta_upper="pi", target="半径边界随角度增长，适合观察区域形状。")
 
 
+def make_solid_easy(rng: random.Random, index: int) -> dict[str, Any]:
+    a = rand_int(rng, 1, 5)
+    b = rand_int(rng, 1, 4)
+    if index == 0:
+        return problem("圆盘法：直线绕 x 轴", "solid_revolution", f"{a}*x", inner_expression="0", lower="0", upper=str(b), solid_preset="washer_x", target="垂直于 x 轴切片，每片是圆盘。", recipe_id="solid_washer")
+    if index == 1:
+        return problem("圆柱体体积", "solid_revolution", str(a), inner_expression="0", lower="0", upper=str(b), solid_preset="washer_x", target="常半径圆盘累积成圆柱。", recipe_id="solid_washer")
+    if index == 2:
+        return problem("垫片法：常半径夹层", "solid_revolution", str(a + 2), inner_expression=str(a), lower="0", upper=str(b), solid_preset="washer_x", target="外圆盘减内圆盘得到垫片截面。", recipe_id="solid_washer")
+    if index == 3:
+        return problem("绕 y 轴的圆盘", "solid_revolution", f"{a}*y", inner_expression="0", lower="0", upper=str(b), solid_preset="washer_y", target="把 y 当作积分变量，截面垂直于 y 轴。", recipe_id="solid_washer")
+    if index == 4:
+        return problem("柱壳法：三角形绕 y 轴", "solid_revolution", f"{a}-x", inner_expression="0", lower="0", upper=str(a), solid_preset="shell_y", target="竖条绕 y 轴形成柱壳。", recipe_id="solid_shell")
+    if index == 5:
+        return problem("柱壳法：横条绕 x 轴", "solid_revolution", f"{a}-y", inner_expression="0", lower="0", upper=str(a), solid_preset="shell_x", target="横条绕 x 轴形成柱壳。", recipe_id="solid_shell")
+    if index == 6:
+        return problem("抛物线圆盘", "solid_revolution", f"{a}*x^2", inner_expression="0", lower="0", upper="1", solid_preset="washer_x", target="幂函数半径用圆盘法。", recipe_id="solid_washer")
+    if index == 7:
+        return problem("线性垫片", "solid_revolution", f"{a}+x", inner_expression=str(a), lower="0", upper=str(b), solid_preset="washer_x", target="外半径随 x 增长，内半径保持常数。", recipe_id="solid_washer")
+    if index == 8:
+        return problem("绕 y 轴常半径垫片", "solid_revolution", str(a + b), inner_expression=str(a), lower="0", upper=str(b), solid_preset="washer_y", target="y 方向累积同样可以形成垫片。", recipe_id="solid_washer")
+    return problem("柱壳法：矩形绕 y 轴", "solid_revolution", str(a), inner_expression="0", lower="0", upper=str(b), solid_preset="shell_y", target="常高度竖条绕 y 轴形成柱壳。", recipe_id="solid_shell")
+
+
+def make_solid_ap(rng: random.Random, index: int) -> dict[str, Any]:
+    a = rand_int(rng, 1, 4)
+    b = rand_int(rng, 2, 5)
+    if index == 0:
+        return problem("垫片法：两条直线之间", "solid_revolution", f"{b}", inner_expression=f"{a}*x", lower="0", upper="1", solid_preset="washer_x", target="先找外半径和内半径，再平方相减。", recipe_id="solid_washer")
+    if index == 1:
+        return problem("圆盘法：根式轮廓", "solid_revolution", f"sqrt({a}*x)", inner_expression="0", lower="0", upper=str(b), solid_preset="washer_x", target="根式半径平方后会简化。", recipe_id="solid_washer")
+    if index == 2:
+        return problem("柱壳法：抛物线高度", "solid_revolution", f"{b}-x^2", inner_expression="0", lower="0", upper="1", solid_preset="shell_y", target="半径是 x，高度来自上曲线减下曲线。", recipe_id="solid_shell")
+    if index == 3:
+        return problem("柱壳法：y 变量", "solid_revolution", f"{b}-y^2", inner_expression="0", lower="0", upper="1", solid_preset="shell_x", target="绕 x 轴时横条半径是 y。", recipe_id="solid_shell")
+    if index == 4:
+        return problem("绕 y 轴的垫片", "solid_revolution", f"{a}+y", inner_expression=str(a), lower="0", upper=str(b), solid_preset="washer_y", target="把半径写成 y 的函数。", recipe_id="solid_washer")
+    if index == 5:
+        return problem("圆盘法：半圆轮廓", "solid_revolution", f"sqrt({a}^2-x^2)", inner_expression="0", lower="0", upper=str(a), solid_preset="washer_x", target="平方后得到二次多项式。", recipe_id="solid_washer")
+    if index == 6:
+        return problem("壳层法：夹层高度", "solid_revolution", f"{b}", inner_expression="x", lower="0", upper=str(a), solid_preset="shell_y", target="高度是外函数减内函数。", recipe_id="solid_shell")
+    if index == 7:
+        return problem("垫片法：抛物线内孔", "solid_revolution", str(b), inner_expression="x^2", lower="0", upper="1", solid_preset="washer_x", target="内半径也要平方，不能只相减半径。", recipe_id="solid_washer")
+    if index == 8:
+        return problem("柱壳法：线性夹层", "solid_revolution", f"{a}+x", inner_expression="x", lower="0", upper=str(b), solid_preset="shell_y", target="柱壳高度来自两条曲线差。", recipe_id="solid_shell")
+    return problem("绕 x 轴柱壳：线性夹层", "solid_revolution", f"{a}+y", inner_expression="y", lower="0", upper=str(b), solid_preset="shell_x", target="横向柱壳同样用半径乘高度。", recipe_id="solid_shell")
+
+
+def make_solid_advanced(rng: random.Random, index: int) -> dict[str, Any]:
+    a = rand_int(rng, 1, 3)
+    if index == 0:
+        return problem("三角轮廓绕 x 轴", "solid_revolution", f"{a}*sin(x)", inner_expression="0", lower="0", upper="pi", solid_preset="washer_x", target="三角半径平方后需要用降幂公式。", recipe_id="solid_washer")
+    if index == 1:
+        return problem("余弦轮廓垫片", "solid_revolution", f"{a}+cos(x)", inner_expression=str(a), lower="0", upper="pi/2", solid_preset="washer_x", target="外半径平方会产生三角项。", recipe_id="solid_washer")
+    if index == 2:
+        return problem("指数衰减旋转体", "solid_revolution", "exp(-x)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="washer_x", target="指数半径平方后仍可精确积分。", recipe_id="solid_washer")
+    if index == 3:
+        return problem("柱壳法：指数高度", "solid_revolution", "exp(-x)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="shell_y", target="柱壳法会出现 x 乘指数函数。", recipe_id="solid_shell")
+    if index == 4:
+        return problem("绕 y 轴的根式垫片", "solid_revolution", f"sqrt({a}*y)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="washer_y", target="用 y 变量进行垫片法。", recipe_id="solid_washer")
+    if index == 5:
+        return problem("柱壳法：三角高度", "solid_revolution", "sin(x)", inner_expression="0", lower="0", upper="pi", solid_preset="shell_y", target="半径乘三角高度，适合观察壳层。", recipe_id="solid_shell")
+    if index == 6:
+        return problem("垫片法：有内孔三角体", "solid_revolution", f"{a}+sin(x)", inner_expression=str(a), lower="0", upper="pi", solid_preset="washer_x", target="先平方再相减，内半径不能漏掉。", recipe_id="solid_washer")
+    if index == 7:
+        return problem("绕 x 轴柱壳：三角高度", "solid_revolution", "sin(y)", inner_expression="0", lower="0", upper="pi", solid_preset="shell_x", target="横向壳层训练变量切换。", recipe_id="solid_shell")
+    if index == 8:
+        return problem("多项式夹层旋转体", "solid_revolution", f"{a}+x^2", inner_expression="x", lower="0", upper="1", solid_preset="washer_x", target="综合使用平方展开和逐项积分。", recipe_id="solid_washer")
+    return problem("柱壳法：多项式夹层", "solid_revolution", f"{a}+x^2", inner_expression="x", lower="0", upper="1", solid_preset="shell_y", target="高度先相减，再乘半径。", recipe_id="solid_shell")
+
+
+def make_solid_mit(rng: random.Random, index: int) -> dict[str, Any]:
+    a = rand_int(rng, 1, 3)
+    if index == 0:
+        return problem("高斯轮廓旋转体", "solid_revolution", "exp(-x^2)", inner_expression="0", lower="0", upper=str(a), solid_preset="washer_x", target="允许出现特殊函数或数值型校验。", recipe_id="solid_washer")
+    if index == 1:
+        return problem("振荡轮廓旋转体", "solid_revolution", f"{a}+sin(3*x)", inner_expression=str(a), lower="0", upper="2*pi", solid_preset="washer_x", target="振荡半径适合用 3D 图检查。", recipe_id="solid_washer")
+    if index == 2:
+        return problem("柱壳法挑战：高斯高度", "solid_revolution", "exp(-x^2)", inner_expression="0", lower="0", upper=str(a), solid_preset="shell_y", target="数值和特殊函数共同校验。", recipe_id="solid_shell")
+    if index == 3:
+        return problem("有理轮廓旋转体", "solid_revolution", "1/(1+x^2)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="washer_x", target="有理函数平方后可用精确或数值校验。", recipe_id="solid_washer")
+    if index == 4:
+        return problem("复杂垫片体积", "solid_revolution", f"{a}+cos(2*x)", inner_expression=str(a), lower="0", upper="pi", solid_preset="washer_x", target="三角展开较长，图像辅助理解。", recipe_id="solid_washer")
+    if index == 5:
+        return problem("绕 y 轴指数垫片", "solid_revolution", "exp(-y)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="washer_y", target="使用 y 变量的指数旋转体。", recipe_id="solid_washer")
+    if index == 6:
+        return problem("绕 x 轴柱壳挑战", "solid_revolution", "exp(-y^2)", inner_expression="0", lower="0", upper=str(a), solid_preset="shell_x", target="横向壳层的数值型挑战。", recipe_id="solid_shell")
+    if index == 7:
+        return problem("根式夹层挑战", "solid_revolution", "sqrt(1+x)", inner_expression="sqrt(x)", lower="0", upper="1", solid_preset="washer_x", target="根式夹层先平方再相减。", recipe_id="solid_washer")
+    if index == 8:
+        return problem("对数高度柱壳", "solid_revolution", "log(1+x)", inner_expression="0", lower="0", upper=str(a + 1), solid_preset="shell_y", target="壳层法结合对数积分。", recipe_id="solid_shell")
+    return problem("特殊函数垫片", "solid_revolution", "exp(-x^2)+1", inner_expression="1", lower="0", upper=str(a), solid_preset="washer_x", target="非初等轮廓用数值和图像共同校验。", recipe_id="solid_washer")
+
+
 MAKERS: dict[tuple[str, str], Callable[[random.Random, int], dict[str, Any]]] = {
     ("indefinite", "easy"): make_indefinite_easy,
     ("indefinite", "ap"): make_indefinite_ap,
@@ -876,6 +1005,10 @@ MAKERS: dict[tuple[str, str], Callable[[random.Random, int], dict[str, Any]]] = 
     ("polar", "ap"): make_polar_ap,
     ("polar", "advanced"): make_polar_advanced,
     ("polar", "mit"): make_polar_mit,
+    ("solid", "easy"): make_solid_easy,
+    ("solid", "ap"): make_solid_ap,
+    ("solid", "advanced"): make_solid_advanced,
+    ("solid", "mit"): make_solid_mit,
 }
 
 CONCEPTS: dict[tuple[str, str], tuple[str, ...]] = {
@@ -899,6 +1032,10 @@ CONCEPTS: dict[tuple[str, str], tuple[str, ...]] = {
     ("polar", "ap"): ("心形线", "玫瑰线", "夹层面积"),
     ("polar", "advanced"): ("极坐标二重积分", "雅可比因子", "变量边界"),
     ("polar", "mit"): ("数值极坐标", "复杂边界", "特殊函数"),
+    ("solid", "easy"): ("旋转体", "圆盘法", "垫片法"),
+    ("solid", "ap"): ("旋转体", "柱壳法", "方法选择"),
+    ("solid", "advanced"): ("体积积分", "垫片法", "柱壳法"),
+    ("solid", "mit"): ("数值旋转体", "特殊函数", "3D 校验"),
 }
 
 

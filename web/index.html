@@ -43,6 +43,7 @@
               <button class="segment" data-mode="double" type="button">二重积分</button>
               <button class="segment" data-mode="polar_area" type="button">极坐标面积</button>
               <button class="segment" data-mode="polar_double" type="button">极坐标二重</button>
+              <button class="segment" data-mode="solid_revolution" type="button">立体积分</button>
             </div>
           </div>
 
@@ -105,6 +106,23 @@
             <p class="field-help">极坐标请使用 theta 表示角度，r 表示极径。</p>
           </div>
 
+          <div class="solid-bounds-grid" id="solidBoundsGrid">
+            <div class="field-group">
+              <label for="solidPreset">旋转体方法</label>
+              <select id="solidPreset">
+                <option value="washer_x">垫片法：绕 x 轴</option>
+                <option value="washer_y">垫片法：绕 y 轴</option>
+                <option value="shell_y">柱壳法：绕 y 轴</option>
+                <option value="shell_x">柱壳法：绕 x 轴</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="solidInnerExpression">内半径 / 下函数</label>
+              <input id="solidInnerExpression" spellcheck="false" autocomplete="off" value="0" />
+            </div>
+            <p class="field-help" id="solidHelp">垫片法输入外/内半径；柱壳法输入上/下函数。绕 y 轴通常用 x，绕 x 轴通常用 y。</p>
+          </div>
+
           <div class="field-group">
             <label>输入模板</label>
             <div class="palette" id="palette">
@@ -143,7 +161,12 @@
             </div>
             <div class="numeric-chip" id="numericChip">0.3333333333</div>
           </div>
+          <div class="three-controls" id="threeControls" hidden>
+            <button type="button" id="reset3d">重置视角</button>
+            <button type="button" id="toggleAutoRotate">自动旋转</button>
+          </div>
           <canvas id="plot" width="1200" height="720" aria-label="函数图像"></canvas>
+          <div id="threePlot" class="three-plot" hidden aria-label="3D 可视化"></div>
         </section>
 
         <section class="result-panel" aria-label="计算结果">
@@ -210,6 +233,7 @@
               <option value="improper">反常积分</option>
               <option value="double">二重积分</option>
               <option value="polar">极坐标积分</option>
+              <option value="solid">立体几何积分</option>
             </select>
             <select id="practiceLevel" aria-label="难度">
               <option value="easy">简单</option>
@@ -260,6 +284,7 @@
                 <option value="double">二重积分</option>
                 <option value="polar_area">极坐标面积</option>
                 <option value="polar_double">极坐标二重积分</option>
+                <option value="solid_revolution">立体几何积分</option>
               </select>
             </div>
             <div class="field-group">
@@ -317,6 +342,22 @@
               </div>
               <p class="field-help" id="qaPolarHelp">极坐标面积请输入外半径 r(theta)；极坐标二重积分请输入 f(r, theta)，系统会自动乘雅可比 r。</p>
             </div>
+            <div class="solid-bounds-grid" id="qaSolidBounds">
+              <div class="field-group">
+                <label for="qaSolidPreset">旋转体方法</label>
+                <select id="qaSolidPreset">
+                  <option value="washer_x">垫片法：绕 x 轴</option>
+                  <option value="washer_y">垫片法：绕 y 轴</option>
+                  <option value="shell_y">柱壳法：绕 y 轴</option>
+                  <option value="shell_x">柱壳法：绕 x 轴</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="qaSolidInnerExpression">内半径 / 下函数</label>
+                <input id="qaSolidInnerExpression" spellcheck="false" autocomplete="off" value="0" />
+              </div>
+              <p class="field-help" id="qaSolidHelp">旋转体结构化输入：垫片法用外/内半径，柱壳法用上/下函数。</p>
+            </div>
             <div class="field-group">
               <label>快速输入</label>
               <div class="palette" id="qaPalette"></div>
@@ -352,6 +393,13 @@
         tex: { inlineMath: [["\\(", "\\)"], ["$", "$"]], displayMath: [["\\[", "\\]"]] },
         svg: { fontCache: "global" },
       };
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.min.js"
+        }
+      }
     </script>
     <script src="i18n/zh-CN.js"></script>
     <script src="i18n/en-US.js"></script>

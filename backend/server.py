@@ -766,6 +766,73 @@ def sample_surface(
     }
 
 
+def sample_solid_revolution(
+    outer_expr: sp.Expr,
+    inner_expr: sp.Expr,
+    lower: float,
+    upper: float,
+    preset: str,
+    variable: sp.Symbol,
+) -> dict[str, Any]:
+    fn_outer = sp.lambdify(variable, outer_expr, modules=["math"])
+    fn_inner = sp.lambdify(variable, inner_expr, modules=["math"])
+    start, end = sorted((lower, upper))
+    if start == end:
+        start -= 1.0
+        end += 1.0
+
+    samples: list[dict[str, float | None]] = []
+    finite_values: list[float] = []
+    size = 72
+    for index in range(size):
+        t_value = index / (size - 1)
+        value = start + (end - start) * t_value
+        try:
+            outer_raw = fn_outer(value)
+            inner_raw = fn_inner(value)
+            if isinstance(outer_raw, complex):
+                outer_raw = outer_raw.real if abs(outer_raw.imag) <= 1e-10 else math.nan
+            if isinstance(inner_raw, complex):
+                inner_raw = inner_raw.real if abs(inner_raw.imag) <= 1e-10 else math.nan
+            outer = float(outer_raw)
+            inner = float(inner_raw)
+            if not math.isfinite(outer) or not math.isfinite(inner):
+                outer = math.nan
+                inner = math.nan
+        except Exception:
+            outer = math.nan
+            inner = math.nan
+
+        if math.isfinite(outer) and math.isfinite(inner):
+            finite_values.extend([outer, inner, value])
+            samples.append({"u": value, "outer": outer, "inner": inner})
+        else:
+            samples.append({"u": value, "outer": None, "inner": None})
+
+    radius_values = [
+        abs(float(sample[key]))
+        for sample in samples
+        for key in ("outer", "inner")
+        if sample[key] is not None and math.isfinite(float(sample[key]))
+    ]
+    if preset in {"shell_y", "shell_x"}:
+        radius_values.extend(abs(float(sample["u"])) for sample in samples if sample["u"] is not None)
+    radius_max = max(radius_values or [1.0])
+    if radius_max <= 1e-12:
+        radius_max = 1.0
+
+    return {
+        "kind": "solid_revolution",
+        "preset": preset,
+        "axis": "x" if preset in {"washer_x", "shell_x"} else "y",
+        "variable": str(variable),
+        "uMin": start,
+        "uMax": end,
+        "radiusMax": radius_max,
+        "samples": samples,
+    }
+
+
 def integrate_double_payload(
     expr: sp.Expr,
     request: dict[str, Any],
@@ -821,6 +888,98 @@ def integrate_double_payload(
         numeric = numeric_double_with_scipy(expr, x_lower, x_upper, y_lower, y_upper, eps)
     response["numeric"] = numeric
     response["plot"] = sample_surface(expr, x_lower, x_upper, y_lower, y_upper)
+    return response
+
+
+def integrate_solid_revolution_payload(
+    outer_expr: sp.Expr,
+    request: dict[str, Any],
+    warnings: list[str],
+    response: dict[str, Any],
+) -> dict[str, Any]:
+    preset = str(request.get("solidPreset", "washer_x"))
+    if preset not in {"washer_x", "washer_y", "shell_y", "shell_x"}:
+        raise ValueError("solidPreset must be one of washer_x, washer_y, shell_y, shell_x")
+
+    variable = y if preset in {"washer_y", "shell_x"} else x
+    ensure_symbols(outer_expr, {variable}, "Solid outer function")
+    inner_expr = parse_math(str(request.get("innerExpression", request.get("inner", "0")) or "0"))
+    ensure_symbols(inner_expr, {variable}, "Solid inner function")
+
+    lower_expr = parse_math(str(request.get("lower", "0")))
+    upper_expr = parse_math(str(request.get("upper", "1")))
+    lower = finite_float(lower_expr)
+    upper = finite_float(upper_expr)
+    if upper <= lower:
+        raise ValueError("Solid revolution requires upper bound greater than lower bound.")
+    if preset in {"shell_y", "shell_x"} and lower < 0:
+        raise ValueError("Shell method first version requires a nonnegative radius interval.")
+
+    eps = float(request.get("epsilon", 1e-8))
+    if preset in {"washer_x", "washer_y"}:
+        volume_integrand = sp.simplify(sp.pi * (outer_expr**2 - inner_expr**2))
+        formula_latex = r"\pi\int(R^2-r^2)\,d" + safe_latex(variable)
+        method_key = "washer"
+    else:
+        volume_integrand = sp.simplify(2 * sp.pi * variable * (outer_expr - inner_expr))
+        formula_latex = r"2\pi\int(\text{radius})(\text{height})\,d" + safe_latex(variable)
+        method_key = "shell"
+
+    response["bounds"] = {
+        "lower": str(lower_expr),
+        "upper": str(upper_expr),
+        "lower_latex": safe_latex(lower_expr),
+        "upper_latex": safe_latex(upper_expr),
+        "lower_float": lower,
+        "upper_float": upper,
+    }
+    response["solid"] = {
+        "preset": preset,
+        "method": method_key,
+        "variable": str(variable),
+        "outer": str(outer_expr),
+        "inner": str(inner_expr),
+        "outer_latex": safe_latex(outer_expr),
+        "inner_latex": safe_latex(inner_expr),
+        "integrand": str(volume_integrand),
+        "integrand_latex": safe_latex(volume_integrand),
+        "formula_latex": formula_latex,
+        "axis": "x" if preset in {"washer_x", "shell_x"} else "y",
+        "region_text": f"{variable} in [{lower_expr}, {upper_expr}], outer={outer_expr}, inner={inner_expr}",
+    }
+
+    antiderivative = sp.integrate(volume_integrand, variable)
+    if not has_unevaluated_integral(antiderivative):
+        antiderivative = sp.simplify(antiderivative)
+        response["antiderivative"] = {
+            "available": True,
+            "text": str(antiderivative),
+            "latex": safe_latex(antiderivative),
+            "verified": sp.simplify(sp.diff(antiderivative, variable) - volume_integrand) == 0,
+        }
+    else:
+        response["antiderivative"] = {"available": False}
+
+    exact = sp.integrate(volume_integrand, (variable, lower_expr, upper_expr))
+    if not has_unevaluated_integral(exact):
+        exact = sp.simplify(exact)
+        response["exact"] = {
+            "available": True,
+            "text": str(exact),
+            "latex": safe_latex(exact),
+            "numeric": safe_numeric_value(exact) if exact.is_real is not False else None,
+        }
+    else:
+        response["exact"] = {"available": False}
+
+    numeric_expr = volume_integrand.subs(variable, x)
+    numeric = numeric_with_cpp(numeric_expr, lower, upper, eps, warnings)
+    if numeric is None:
+        numeric = numeric_with_scipy(numeric_expr, lower, upper, eps)
+        if numeric.get("integration_warnings"):
+            warnings.extend(numeric["integration_warnings"])
+    response["numeric"] = numeric
+    response["plot"] = sample_solid_revolution(outer_expr, inner_expr, lower, upper, preset, variable)
     return response
 
 
@@ -988,6 +1147,9 @@ def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
         allowed_symbols = {theta}
     elif mode == "polar_double":
         allowed_symbols = {r, theta}
+    elif mode == "solid_revolution":
+        preset = str(request.get("solidPreset", "washer_x"))
+        allowed_symbols = {y} if preset in {"washer_y", "shell_x"} else {x}
     else:
         allowed_symbols = {x}
     if free_symbols - allowed_symbols:
@@ -998,6 +1160,8 @@ def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
             allowed_names = "theta"
         elif mode == "polar_double":
             allowed_names = "r and theta"
+        elif mode == "solid_revolution":
+            allowed_names = "y" if str(request.get("solidPreset", "washer_x")) in {"washer_y", "shell_x"} else "x"
         else:
             allowed_names = "x"
         raise ValueError(f"Only the variable {allowed_names} is supported in this mode. Unknown: {names}")
@@ -1017,6 +1181,8 @@ def integrate_payload(request: dict[str, Any]) -> dict[str, Any]:
         return integrate_polar_area_payload(expr, request, warnings, response)
     if mode == "polar_double":
         return integrate_polar_double_payload(expr, request, warnings, response)
+    if mode == "solid_revolution":
+        return integrate_solid_revolution_payload(expr, request, warnings, response)
 
     antiderivative = sp.integrate(expr, x)
     if not has_unevaluated_integral(antiderivative):
@@ -1220,6 +1386,42 @@ def solve_statement_latex(request: dict[str, Any], integration: dict[str, Any]) 
             + expr_latex
             + "\\,r\\,dr\\,d\\theta"
         )
+    if mode == "solid_revolution":
+        solid = integration.get("solid", {})
+        bounds = integration.get("bounds", {})
+        preset = solid.get("preset", "washer_x")
+        variable = solid.get("variable", "x")
+        lower = bounds.get("lower_latex", "a")
+        upper = bounds.get("upper_latex", "b")
+        outer = solid.get("outer_latex", expr_latex)
+        inner = solid.get("inner_latex", "0")
+        if preset in {"washer_x", "washer_y"}:
+            return (
+                "\\pi\\int_{"
+                + lower
+                + "}^{"
+                + upper
+                + "}\\left(("
+                + outer
+                + ")^2-("
+                + inner
+                + ")^2\\right)\\,d"
+                + variable
+            )
+        return (
+            "2\\pi\\int_{"
+            + lower
+            + "}^{"
+            + upper
+            + "}"
+            + variable
+            + "\\left(("
+            + outer
+            + ")-("
+            + inner
+            + ")\\right)\\,d"
+            + variable
+        )
     if mode == "double":
         return (
             "\\int_{"
@@ -1302,6 +1504,8 @@ METHOD_ENGLISH = {
     "rectangular_double_integral": ("Double integral over a rectangle", "Compute the iterated integral one variable at a time."),
     "polar_area_formula": ("Polar area formula", "Use the thin-sector area element for a polar curve."),
     "polar_double_jacobian": ("Polar double integral: Jacobian factor", r"In polar coordinates the area element is multiplied by the Jacobian factor \(r\)."),
+    "solid_washer": ("Volume by washers", "A cross-section perpendicular to the rotation axis is a washer, so integrate outer disk area minus inner disk area."),
+    "solid_shell": ("Volume by cylindrical shells", "A strip parallel to the rotation axis sweeps out a cylindrical shell, so integrate circumference times height."),
     "fundamental_theorem": ("Definite integral: Fundamental Theorem of Calculus", "Find an antiderivative first, then evaluate it at the upper and lower bounds."),
     "generic_antiderivative": ("Indefinite integral: antiderivative technique", r"Use the same technique-selection step as a definite integral, then write the antiderivative with \(C\) instead of evaluating bounds."),
 }
@@ -1322,6 +1526,8 @@ METHOD_CHINESE = {
     "rectangular_double_integral": ("矩形区域二重积分", "把矩形区域上的二重积分写成累次积分，一层一层累积曲面高度。"),
     "polar_area_formula": ("极坐标面积公式", "把极坐标曲线围成的区域看成许多薄扇形，面积微元是 \\(\\frac12r^2\\,d\\theta\\)。"),
     "polar_double_jacobian": ("极坐标二重积分：雅可比因子 r", "极坐标面积微元是 \\(dA=r\\,dr\\,d\\theta\\)，所以被积函数必须乘上 \\(r\\)。"),
+    "solid_washer": ("旋转体：圆盘/垫片法", "垂直于旋转轴切开时，截面是圆盘或垫片；体积来自截面积 \\(\\pi(R^2-r^2)\\) 的累积。"),
+    "solid_shell": ("旋转体：柱壳法", "平行于旋转轴的薄条旋转后形成柱壳；体积来自周长 \\(2\\pi\\cdot 半径\\) 乘高度的累积。"),
     "fundamental_theorem": ("微积分基本定理", "右侧推导实际采用的是：先找原函数，再代入上下限计算净累积量。"),
     "generic_antiderivative": ("不定积分：按结构选求积技巧", "不定积分和定积分的方法选择相同；右侧暂时只完成了原函数结果展示，不代上下限并加 \\(C\\)。"),
 }
@@ -1374,6 +1580,14 @@ CONCEPT_ENGLISH = {
     "变量边界": "variable bounds",
     "数值极坐标": "numeric polar integral",
     "复杂边界": "complex bounds",
+    "旋转体": "solids of revolution",
+    "圆盘法": "disk method",
+    "垫片法": "washer method",
+    "柱壳法": "shell method",
+    "体积积分": "volume integral",
+    "方法选择": "method choice",
+    "数值旋转体": "numeric solid of revolution",
+    "3D 校验": "3D verification",
 }
 
 
@@ -1384,6 +1598,7 @@ PROBLEM_TITLE_ENGLISH = {
     "double": "Double integral practice",
     "polar_area": "Polar area practice",
     "polar_double": "Polar double integral practice",
+    "solid_revolution": "Solid of revolution practice",
 }
 
 
@@ -1394,6 +1609,7 @@ PROBLEM_TARGET_ENGLISH = {
     "double": "Evaluate the iterated integral over the given region.",
     "polar_area": "Use the polar area formula and show the radius-square step.",
     "polar_double": r"Use the polar Jacobian \(r\) and evaluate the iterated integral.",
+    "solid_revolution": "Choose washer or shell geometry, build the volume integrand, and verify the volume.",
 }
 
 
@@ -1589,6 +1805,26 @@ def solve_steps(
         else:
             steps.append("按累次积分理解：先对内层变量积分，再对外层变量积分。")
         steps.append("图像中底面矩形是积分区域，曲面 \\(z=f(x,y)\\) 的高度累积成体积。")
+    elif mode == "solid_revolution":
+        bounds = integration.get("bounds", {})
+        solid = integration.get("solid", {})
+        preset = solid.get("preset", "washer_x")
+        variable = solid.get("variable", "x")
+        steps.append(
+            "旋转体体积来自切片累积："
+            f"\\({variable}\\in[{bounds.get('lower_latex','a')},{bounds.get('upper_latex','b')}]\\)。"
+        )
+        if preset in {"washer_x", "washer_y"}:
+            steps.append(
+                "本题使用圆盘/垫片法：垂直于旋转轴切片，截面积是 "
+                "\\(\\pi(R^2-r^2)\\)。"
+            )
+        else:
+            steps.append(
+                "本题使用柱壳法：平行于旋转轴切片，薄壳体积约为 "
+                "\\(2\\pi\\cdot 半径\\cdot 高度\\cdot 厚度\\)。"
+            )
+        steps.append(f"代入后实际积分函数是 \\({solid.get('integrand_latex','')}\\)。")
     elif mode == "improper":
         improper = integration.get("improper", {})
         steps.append("反常积分不能直接把无穷或奇点当普通数字代入，必须先写成极限。")
@@ -1721,6 +1957,9 @@ def expected_recipes_for_problem(problem_item: dict[str, Any]) -> set[str]:
         expected.add("polar_area_formula")
     elif mode == "polar_double":
         expected.add("polar_double_jacobian")
+    elif mode == "solid_revolution":
+        preset = str(problem_item.get("solidPreset", "washer_x"))
+        expected.add("solid_shell" if preset in {"shell_y", "shell_x"} else "solid_washer")
     elif mode == "double":
         expected.add("rectangular_double_integral")
     return expected
@@ -1740,7 +1979,7 @@ def is_practice_solution_usable(solution: dict[str, Any]) -> bool:
         if status == "divergent":
             return True
         return bool(solution.get("exact", {}).get("available") or solution.get("numeric", {}).get("value") is not None)
-    if mode in {"definite", "double", "polar_area", "polar_double"}:
+    if mode in {"definite", "double", "polar_area", "polar_double", "solid_revolution"}:
         return bool(solution.get("exact", {}).get("available") or solution.get("numeric", {}).get("value") is not None)
     return False
 

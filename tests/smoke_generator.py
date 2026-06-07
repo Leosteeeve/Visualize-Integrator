@@ -17,7 +17,7 @@ def expect(name, condition):
 
 
 def main():
-    expect("family count", len(problem_generator.FAMILIES) == 200)
+    expect("family count", len(problem_generator.FAMILIES) == len(problem_generator.KINDS) * len(problem_generator.LEVELS) * 10)
     expect("capacity estimate", problem_generator.total_capacity() >= 200000)
 
     for kind in problem_generator.KINDS:

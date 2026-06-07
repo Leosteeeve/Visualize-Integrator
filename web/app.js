@@ -22,7 +22,10 @@ const elements = {
   boundsGrid: $("#boundsGrid"),
   doubleBoundsGrid: $("#doubleBoundsGrid"),
   polarBoundsGrid: $("#polarBoundsGrid"),
+  solidBoundsGrid: $("#solidBoundsGrid"),
   innerExpression: $("#innerExpression"),
+  solidPreset: $("#solidPreset"),
+  solidInnerExpression: $("#solidInnerExpression"),
   rLower: $("#rLower"),
   rUpper: $("#rUpper"),
   thetaLower: $("#thetaLower"),
@@ -36,6 +39,10 @@ const elements = {
   qaPalette: $("#qaPalette"),
   examples: $("#examples"),
   plot: $("#plot"),
+  threePlot: $("#threePlot"),
+  threeControls: $("#threeControls"),
+  reset3d: $("#reset3d"),
+  toggleAutoRotate: $("#toggleAutoRotate"),
   plotTitle: $("#plotTitle"),
   numericChip: $("#numericChip"),
   engineBadge: $("#engineBadge"),
@@ -69,7 +76,10 @@ const elements = {
   qaBounds: $("#qaBounds"),
   qaDoubleBounds: $("#qaDoubleBounds"),
   qaPolarBounds: $("#qaPolarBounds"),
+  qaSolidBounds: $("#qaSolidBounds"),
   qaInnerExpression: $("#qaInnerExpression"),
+  qaSolidPreset: $("#qaSolidPreset"),
+  qaSolidInnerExpression: $("#qaSolidInnerExpression"),
   qaRLower: $("#qaRLower"),
   qaRUpper: $("#qaRUpper"),
   qaThetaLower: $("#qaThetaLower"),
@@ -85,6 +95,9 @@ let currentMode = "definite";
 let currentLesson = "zero";
 let lastPlot = null;
 let lastPracticeProblem = null;
+let threeRuntime = null;
+let threeState = null;
+let threeAutoRotate = true;
 const PRACTICE_SIGNATURE_STORAGE_KEY = "calculus.practice.signatures.v1";
 const LANGUAGE_STORAGE_KEY = "calculus.language.v1";
 let currentLanguage = loadLanguage();
@@ -149,11 +162,16 @@ function applyTranslations() {
   $("label[for='yLower']").textContent = t("yLower", "y 下限");
   $("label[for='yUpper']").textContent = t("yUpper", "y 上限");
   $("label[for='innerExpression']").textContent = t("innerRadius", "内半径 r_in(theta)");
+  $("label[for='solidPreset']").textContent = t("solidPreset", "旋转体方法");
+  $("label[for='solidInnerExpression']").textContent = t("solidInner", "内半径 / 下函数");
   $("label[for='rLower']").textContent = t("rLower", "r 下限");
   $("label[for='rUpper']").textContent = t("rUpper", "r 上限");
   $("label[for='thetaLower']").textContent = t("thetaLower", "theta 下限");
   $("label[for='thetaUpper']").textContent = t("thetaUpper", "theta 上限");
   $(".polar-bounds-grid .field-help").textContent = t("polarHelp", "极坐标请使用 theta 表示角度，r 表示极径。");
+  $("#solidHelp").textContent = t("solidHelp", "垫片法输入外/内半径；柱壳法输入上/下函数。绕 y 轴通常用 x，绕 x 轴通常用 y。");
+  elements.reset3d.textContent = t("reset3d", "重置视角");
+  elements.toggleAutoRotate.textContent = threeAutoRotate ? t("autoRotateOn", "自动旋转：开") : t("autoRotateOff", "自动旋转：关");
   const toolFreeLabels = $$(".control-panel label:not([for])");
   if (toolFreeLabels[0]) toolFreeLabels[0].textContent = t("templates", "输入模板");
   if (toolFreeLabels[1]) toolFreeLabels[1].textContent = t("commonExamples", "常用模板");
@@ -188,6 +206,8 @@ function applyTranslations() {
   $("label[for='qaYLower']").textContent = t("yLower", "y 下限");
   $("label[for='qaYUpper']").textContent = t("yUpper", "y 上限");
   $("label[for='qaInnerExpression']").textContent = t("innerRadius", "内半径 r_in(theta)");
+  $("label[for='qaSolidPreset']").textContent = t("solidPreset", "旋转体方法");
+  $("label[for='qaSolidInnerExpression']").textContent = t("solidInner", "内半径 / 下函数");
   $("label[for='qaRLower']").textContent = t("rLower", "r 下限");
   $("label[for='qaRUpper']").textContent = t("rUpper", "r 上限");
   $("label[for='qaThetaLower']").textContent = t("thetaLower", "theta 下限");
@@ -196,6 +216,7 @@ function applyTranslations() {
     "qaPolarHelp",
     "极坐标面积请输入外半径 r(theta)；极坐标二重积分请输入 f(r, theta)，系统会自动乘雅可比 r。",
   );
+  $("#qaSolidHelp").textContent = t("qaSolidHelp", "旋转体结构化输入：垫片法用外/内半径，柱壳法用上/下函数。");
   const qaFreeLabels = $$("#qaSection label:not([for])");
   if (qaFreeLabels[0]) qaFreeLabels[0].textContent = t("quickInput", "快速输入");
   elements.askQuestion.textContent = t("ask", "解答并显示步骤");
@@ -209,6 +230,9 @@ function updateSelectLabels() {
   for (const option of elements.practiceKind.options) option.textContent = t(`modes.${option.value}`, option.textContent);
   for (const option of elements.qaMode.options) option.textContent = t(`modes.${option.value}`, option.textContent);
   for (const option of elements.practiceLevel.options) option.textContent = t(`levels.${option.value}`, option.textContent);
+  for (const select of [elements.solidPreset, elements.qaSolidPreset]) {
+    for (const option of select.options) option.textContent = t(`solidPresets.${option.value}`, option.textContent);
+  }
 }
 
 function apiBaseUrl() {
@@ -379,6 +403,28 @@ const cannedProblems = {
     thetaUpper: "2*pi",
     statement: rawMath`\int_0^{2\pi}\int_0^1 r\,dr\,d\theta`,
   },
+  solidWasher: {
+    id: "solidWasher",
+    title: "垫片法旋转体",
+    mode: "solid_revolution",
+    solidPreset: "washer_x",
+    expression: "x",
+    innerExpression: "0",
+    lower: "0",
+    upper: "1",
+    statement: rawMath`\pi\int_0^1 x^2\,dx`,
+  },
+  solidShell: {
+    id: "solidShell",
+    title: "柱壳法旋转体",
+    mode: "solid_revolution",
+    solidPreset: "shell_y",
+    expression: "1-x",
+    innerExpression: "0",
+    lower: "0",
+    upper: "1",
+    statement: rawMath`2\pi\int_0^1 x(1-x)\,dx`,
+  },
 };
 
 const lessons = [
@@ -543,6 +589,43 @@ const lessons = [
       },
     ],
   },
+  {
+    id: "solid",
+    title: "5. 立体几何积分与旋转体",
+    preview: "solidWasher",
+    cards: [
+      {
+        title: "从面积切片到体积切片",
+        body: [
+          "旋转体可以理解成：先在平面上画一块区域，再把它绕某条坐标轴旋转，扫出一个三维物体。",
+          "积分的角色没有变，仍然是在累加很多很薄的切片。变化的是每个小切片不再是小矩形面积，而是一个很薄的体积。",
+        ],
+        formula: rawMath`\[V=\int_a^b A(u)\,du\]`,
+        symbols: ["\\(A(u)\\)：在位置 \\(u\\) 的截面积。", "\\(du\\)：切片厚度，可以是 \\(dx\\) 或 \\(dy\\)。"],
+        examples: ["solidWasher"],
+      },
+      {
+        title: "圆盘法和垫片法",
+        body: [
+          "如果切片垂直于旋转轴，旋转后每一片是圆盘；如果中间被挖空，就是垫片。",
+          "外半径 \\(R\\) 和内半径 \\(r\\) 都是到旋转轴的距离。关键不是直接做 \\(R-r\\)，而是先平方再相减。"
+        ],
+        formula: rawMath`\[V=\pi\int_a^b\left(R(u)^2-r(u)^2\right)\,du\]`,
+        symbols: ["\\(R(u)\\)：外半径。", "\\(r(u)\\)：内半径，没有空洞时为 0。", "\\(\\pi R^2-\\pi r^2\\)：垫片截面积。"],
+        examples: ["solidWasher"],
+      },
+      {
+        title: "柱壳法",
+        body: [
+          "如果切片平行于旋转轴，薄条旋转后像一个很薄的圆柱壳。",
+          "薄壳的体积近似为周长 \\(2\\pi\\cdot 半径\\) 乘高度，再乘厚度。它常用在垫片法需要反解函数时。"
+        ],
+        formula: rawMath`\[V=2\pi\int_a^b(\text{半径})(\text{高度})\,du\]`,
+        symbols: ["半径：薄条到旋转轴的距离。", "高度：上函数减下函数。", "厚度：\\(dx\\) 或 \\(dy\\)。"],
+        examples: ["solidShell"],
+      },
+    ],
+  },
 ];
 
 function loadPracticeSignatures() {
@@ -587,23 +670,42 @@ function setMode(mode, shouldCalculate = true) {
   const isPolarArea = mode === "polar_area";
   const isPolarDouble = mode === "polar_double";
   const isPolar = isPolarArea || isPolarDouble;
+  const isSolid = mode === "solid_revolution";
   for (const button of elements.modeButtons) {
     button.classList.toggle("active", button.dataset.mode === mode);
   }
   elements.boundsGrid.style.display = mode === "indefinite" || isDouble || isPolar ? "none" : "grid";
   elements.doubleBoundsGrid.style.display = isDouble ? "grid" : "none";
   elements.polarBoundsGrid.style.display = isPolar ? "grid" : "none";
+  elements.solidBoundsGrid.style.display = isSolid ? "grid" : "none";
   for (const node of elements.polarAreaFields) node.style.display = isPolarArea ? "grid" : "none";
   for (const node of elements.polarDoubleFields) node.style.display = isPolarDouble ? "grid" : "none";
-  elements.expressionLabel.textContent = isDouble ? "f(x, y)" : isPolarArea ? "r_out(theta)" : isPolarDouble ? "f(r, theta)" : "f(x)";
+  elements.expressionLabel.textContent = isDouble
+    ? "f(x, y)"
+    : isPolarArea
+      ? "r_out(theta)"
+      : isPolarDouble
+        ? "f(r, theta)"
+        : isSolid
+          ? solidExpressionLabel(elements.solidPreset.value)
+          : "f(x)";
   if (isPolarArea && elements.expression.value === "x^2") {
     elements.expression.value = "2*sin(theta)";
   } else if (isPolarDouble && elements.expression.value === "x^2") {
     elements.expression.value = "1";
+  } else if (isSolid && elements.expression.value === "x^2") {
+    elements.expression.value = elements.solidPreset.value === "washer_y" || elements.solidPreset.value === "shell_x" ? "y" : "x";
   }
   if (shouldCalculate) {
     calculate();
   }
+}
+
+function solidExpressionLabel(preset) {
+  if (preset === "washer_y") return currentLanguage === "en-US" ? "Outer radius R(y)" : "外半径 R(y)";
+  if (preset === "shell_x") return currentLanguage === "en-US" ? "Upper function f(y)" : "上函数 f(y)";
+  if (preset === "shell_y") return currentLanguage === "en-US" ? "Upper function f(x)" : "上函数 f(x)";
+  return currentLanguage === "en-US" ? "Outer radius R(x)" : "外半径 R(x)";
 }
 
 function insertAtCursor(input, value) {
@@ -636,7 +738,8 @@ function requestPayload() {
     xUpper: elements.xUpper.value,
     yLower: elements.yLower.value,
     yUpper: elements.yUpper.value,
-    innerExpression: elements.innerExpression.value,
+    solidPreset: elements.solidPreset.value,
+    innerExpression: currentMode === "solid_revolution" ? elements.solidInnerExpression.value : elements.innerExpression.value,
     rLower: elements.rLower.value,
     rUpper: elements.rUpper.value,
     thetaLower: elements.thetaLower.value,
@@ -656,6 +759,7 @@ function payloadFromProblem(item) {
     xUpper: item.xUpper ?? "1",
     yLower: item.yLower ?? "0",
     yUpper: item.yUpper ?? "1",
+    solidPreset: item.solidPreset ?? "washer_x",
     innerExpression: item.innerExpression ?? "0",
     rLower: item.rLower ?? "0",
     rUpper: item.rUpper ?? "1",
@@ -730,6 +834,8 @@ function renderResult(payload) {
         ? `r = ${payload.polar?.outer || payload.expression}`
         : payload.mode === "polar_double"
           ? `z = ${payload.expression}, dA = r dr dθ`
+          : payload.mode === "solid_revolution"
+            ? `V: ${solidPresetLabel(payload.solid?.preset)}`
           : `f(x) = ${payload.expression}`;
   const exact = payload.exact?.available ? payload.exact.text : "-";
   const numeric = payload.numeric?.ok !== false ? formatNumber(payload.numeric?.value) : "-";
@@ -754,6 +860,11 @@ function renderResult(payload) {
     elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ 2D" : "SciPy 2D";
     elements.fourthResultLabel.textContent = t("region", "区域");
     elements.antiderivativeResult.textContent = payload.double?.region_text || "矩形区域";
+  } else if (payload.mode === "solid_revolution") {
+    elements.statusResult.textContent = t("modes.solid_revolution", "立体几何积分");
+    elements.engineBadge.textContent = payload.numeric?.engine === "cpp" ? "C++ 1D" : "SciPy 1D";
+    elements.fourthResultLabel.textContent = t("region", "区域");
+    elements.antiderivativeResult.textContent = payload.solid?.region_text || solidPresetLabel(payload.solid?.preset);
   } else if (payload.mode === "improper") {
     elements.statusResult.textContent = statusLabel(payload.improper?.status);
     elements.engineBadge.textContent = payload.improper?.status === "divergent" ? "判定" : "SciPy";
@@ -780,6 +891,10 @@ function renderResult(payload) {
   setMessages(messages);
   lastPlot = payload.plot;
   drawPlot(lastPlot);
+}
+
+function solidPresetLabel(preset) {
+  return t(`solidPresets.${preset}`, preset || "solid");
 }
 
 function statusLabel(status) {
@@ -840,7 +955,11 @@ function applyProblem(item) {
   if (item.xUpper !== undefined) elements.xUpper.value = item.xUpper;
   if (item.yLower !== undefined) elements.yLower.value = item.yLower;
   if (item.yUpper !== undefined) elements.yUpper.value = item.yUpper;
-  if (item.innerExpression !== undefined) elements.innerExpression.value = item.innerExpression;
+  if (item.solidPreset !== undefined) elements.solidPreset.value = item.solidPreset;
+  if (item.innerExpression !== undefined) {
+    elements.innerExpression.value = item.innerExpression;
+    elements.solidInnerExpression.value = item.innerExpression;
+  }
   if (item.rLower !== undefined) elements.rLower.value = item.rLower;
   if (item.rUpper !== undefined) elements.rUpper.value = item.rUpper;
   if (item.thetaLower !== undefined) elements.thetaLower.value = item.thetaLower;
@@ -875,13 +994,15 @@ function localizedCannedTitle(id) {
     polarCircle: "Polar circle area",
     polarRose: "Rose curve petal",
     polarDoubleUnit: "Polar double integral",
+    solidWasher: "Washer-method solid",
+    solidShell: "Shell-method solid",
   };
   const item = cannedProblems[id];
   return currentLanguage === "en-US" ? english[id] || item?.title || id : item?.title || id;
 }
 
 function renderCommonExamples() {
-  const ids = ["powerArea", "sinArea", "pConverges", "endpoint", "doubleXY", "paraboloid", "polarCircle", "polarRose"];
+  const ids = ["powerArea", "sinArea", "pConverges", "endpoint", "doubleXY", "paraboloid", "polarCircle", "polarRose", "solidWasher", "solidShell"];
   elements.examples.innerHTML = ids
     .map((id) => {
       return `<button type="button" data-example="${id}">${localizedCannedTitle(id)}</button>`;
@@ -1026,7 +1147,8 @@ function qaPayload() {
       xUpper: elements.qaXUpper.value,
       yLower: elements.qaYLower.value,
       yUpper: elements.qaYUpper.value,
-      innerExpression: elements.qaInnerExpression.value,
+      solidPreset: elements.qaSolidPreset.value,
+      innerExpression: elements.qaMode.value === "solid_revolution" ? elements.qaSolidInnerExpression.value : elements.qaInnerExpression.value,
       rLower: elements.qaRLower.value,
       rUpper: elements.qaRUpper.value,
       thetaLower: elements.qaThetaLower.value,
@@ -1043,7 +1165,8 @@ function qaPayload() {
     xUpper: elements.qaXUpper.value,
     yLower: elements.qaYLower.value,
     yUpper: elements.qaYUpper.value,
-    innerExpression: elements.qaInnerExpression.value,
+    solidPreset: elements.qaSolidPreset.value,
+    innerExpression: elements.qaMode.value === "solid_revolution" ? elements.qaSolidInnerExpression.value : elements.qaInnerExpression.value,
     rLower: elements.qaRLower.value,
     rUpper: elements.qaRUpper.value,
     thetaLower: elements.qaThetaLower.value,
@@ -1065,7 +1188,8 @@ async function askQuestion() {
       xUpper: result.bounds?.x_upper,
       yLower: result.bounds?.y_lower,
       yUpper: result.bounds?.y_upper,
-      innerExpression: result.polar?.inner,
+      solidPreset: result.solid?.preset,
+      innerExpression: result.solid?.inner ?? result.polar?.inner,
       rLower: result.bounds?.r_lower,
       rUpper: result.bounds?.r_upper,
       thetaLower: result.bounds?.theta_lower,
@@ -1084,18 +1208,25 @@ function updateQaBounds() {
   const isPolarArea = elements.qaMode.value === "polar_area";
   const isPolarDouble = elements.qaMode.value === "polar_double";
   const isPolar = isPolarArea || isPolarDouble;
+  const isSolid = elements.qaMode.value === "solid_revolution";
   elements.qaBounds.style.display = elements.qaMode.value === "indefinite" || isDouble || isPolar ? "none" : "grid";
   elements.qaDoubleBounds.style.display = isDouble ? "grid" : "none";
   elements.qaPolarBounds.style.display = isPolar ? "grid" : "none";
+  elements.qaSolidBounds.style.display = isSolid ? "grid" : "none";
   for (const node of elements.qaPolarAreaFields) node.style.display = isPolarArea ? "grid" : "none";
   for (const node of elements.qaPolarDoubleFields) node.style.display = isPolarDouble ? "grid" : "none";
   elements.qaExpressionLabel.textContent = isPolarArea
     ? (currentLanguage === "en-US" ? "Outer radius r_out(theta)" : "外半径 r_out(theta)")
     : isPolarDouble
       ? (currentLanguage === "en-US" ? "Function f(r, theta)" : "函数 f(r, theta)")
-      : t("expression", "函数表达式");
+      : isSolid
+        ? solidExpressionLabel(elements.qaSolidPreset.value)
+        : t("expression", "函数表达式");
   if (isPolarArea && elements.qaExpression.value === "x^2") elements.qaExpression.value = "2*sin(theta)";
   if (isPolarDouble && elements.qaExpression.value === "x^2") elements.qaExpression.value = "1";
+  if (isSolid && elements.qaExpression.value === "x^2") {
+    elements.qaExpression.value = elements.qaSolidPreset.value === "washer_y" || elements.qaSolidPreset.value === "shell_x" ? "y" : "x";
+  }
 }
 
 function typesetMath() {
@@ -1117,7 +1248,21 @@ function resizeCanvas(canvas) {
 }
 
 function drawPlot(plot) {
+  if (isThreePlot(plot)) {
+    drawThreePlot(plot).catch((error) => {
+      console.warn("3D rendering failed; using Canvas fallback.", error);
+      drawCanvasFallback(plot);
+    });
+    return;
+  }
+  hideThreePlot();
+  drawCanvasFallback(plot);
+}
+
+function drawCanvasFallback(plot) {
+  hideThreePlot();
   const canvas = elements.plot;
+  canvas.hidden = false;
   const { width, height, ctx } = resizeCanvas(canvas);
   ctx.clearRect(0, 0, width, height);
   if (plot?.kind === "surface") {
@@ -1128,7 +1273,372 @@ function drawPlot(plot) {
     drawPolarPlot(ctx, width, height, plot);
     return;
   }
+  if (plot?.kind === "solid_revolution") {
+    drawSolidMiniPlot(ctx, width, height, plot);
+    return;
+  }
   drawCurvePlot(ctx, width, height, plot);
+}
+
+function isThreePlot(plot) {
+  return plot?.kind === "surface" || plot?.kind === "polar_surface" || plot?.kind === "solid_revolution";
+}
+
+async function loadThreeRuntime() {
+  if (threeRuntime) return threeRuntime;
+  const THREE = await import("./vendor/three.module.min.js");
+  const controlsModule = await import("./vendor/OrbitControls.js");
+  threeRuntime = { THREE, OrbitControls: controlsModule.OrbitControls };
+  return threeRuntime;
+}
+
+function ensureThreeScene(THREE, OrbitControls) {
+  const host = elements.threePlot;
+  if (threeState?.renderer) return threeState;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setClearColor(0xfbfdfd, 1);
+  host.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
+  camera.position.set(4.2, 4.0, 3.0);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.autoRotate = threeAutoRotate;
+  controls.autoRotateSpeed = 1.0;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd5e3e5, 1.4));
+  const light = new THREE.DirectionalLight(0xffffff, 1.8);
+  light.position.set(4, 5, 6);
+  scene.add(light);
+  const group = new THREE.Group();
+  scene.add(group);
+  threeState = { THREE, renderer, scene, camera, controls, group, animation: null };
+  return threeState;
+}
+
+async function drawThreePlot(plot) {
+  const { THREE, OrbitControls } = await loadThreeRuntime();
+  const state = ensureThreeScene(THREE, OrbitControls);
+  elements.plot.hidden = true;
+  elements.threePlot.hidden = false;
+  elements.threeControls.hidden = false;
+  elements.toggleAutoRotate.textContent = threeAutoRotate ? t("autoRotateOn", "自动旋转：开") : t("autoRotateOff", "自动旋转：关");
+  clearThreeGroup(state);
+  if (plot.kind === "solid_revolution") buildSolidScene(state, plot);
+  else buildSurfaceScene(state, plot);
+  resizeThreeRenderer(state);
+  startThreeAnimation(state);
+}
+
+function clearThreeGroup(state) {
+  while (state.group.children.length) {
+    const child = state.group.children.pop();
+    child.traverse?.((node) => {
+      node.geometry?.dispose?.();
+      if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose?.());
+      else node.material?.dispose?.();
+    });
+  }
+}
+
+function resizeThreeRenderer(state) {
+  const rect = elements.threePlot.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width));
+  const height = Math.max(260, Math.floor(rect.height));
+  state.renderer.setSize(width, height, false);
+  state.camera.aspect = width / height;
+  state.camera.updateProjectionMatrix();
+}
+
+function startThreeAnimation(state) {
+  if (state.animation) cancelAnimationFrame(state.animation);
+  const animate = () => {
+    state.controls.autoRotate = threeAutoRotate;
+    state.controls.update();
+    state.renderer.render(state.scene, state.camera);
+    state.animation = requestAnimationFrame(animate);
+  };
+  animate();
+}
+
+function hideThreePlot() {
+  elements.threePlot.hidden = true;
+  elements.threeControls.hidden = true;
+  elements.plot.hidden = false;
+  if (threeState?.animation) {
+    cancelAnimationFrame(threeState.animation);
+    threeState.animation = null;
+  }
+}
+
+function buildSurfaceScene(state, plot) {
+  const { THREE, group } = state;
+  const rows = plot.rows || [];
+  const extents = surfaceExtents(plot);
+  const xSpan = Math.max(1e-9, extents.xMax - extents.xMin);
+  const ySpan = Math.max(1e-9, extents.yMax - extents.yMin);
+  const zScale = Math.max(Math.abs(plot.zMin ?? -1), Math.abs(plot.zMax ?? 1), 1e-9);
+  const scale = 3.2 / Math.max(xSpan, ySpan);
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  const colors = [];
+  const indices = [];
+  const color = new THREE.Color();
+  for (let row = 0; row < rows.length; row += 1) {
+    for (let col = 0; col < rows[row].length; col += 1) {
+      const point = rows[row][col];
+      const xValue = ((point.x - extents.xMin) - xSpan / 2) * scale;
+      const yValue = ((point.y - extents.yMin) - ySpan / 2) * scale;
+      const zValue = point.z === null ? 0 : (point.z / zScale) * 1.25;
+      vertices.push(xValue, yValue, zValue);
+      const rgb = surfaceRgb(point.z ?? 0, plot.zMin ?? -1, plot.zMax ?? 1);
+      color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+      colors.push(color.r, color.g, color.b);
+    }
+  }
+  const cols = rows[0]?.length || 0;
+  for (let row = 0; row < rows.length - 1; row += 1) {
+    for (let col = 0; col < cols - 1; col += 1) {
+      const a = row * cols + col;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = a + cols;
+      indices.push(a, b, c, a, c, d);
+    }
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  group.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.64, metalness: 0.03 })));
+  group.add(new THREE.GridHelper(4.2, 10, 0x8fa1a8, 0xd7dee2));
+  addAxes(state, 2.5);
+  resetThreeCamera(state);
+}
+
+function surfaceExtents(plot) {
+  if (Number.isFinite(plot.xMin) && Number.isFinite(plot.xMax) && Number.isFinite(plot.yMin) && Number.isFinite(plot.yMax)) {
+    return { xMin: plot.xMin, xMax: plot.xMax, yMin: plot.yMin, yMax: plot.yMax };
+  }
+  const xs = [];
+  const ys = [];
+  for (const row of plot.rows || []) {
+    for (const point of row) {
+      if (Number.isFinite(point.x)) xs.push(point.x);
+      if (Number.isFinite(point.y)) ys.push(point.y);
+    }
+  }
+  return {
+    xMin: Math.min(...xs, -1),
+    xMax: Math.max(...xs, 1),
+    yMin: Math.min(...ys, -1),
+    yMax: Math.max(...ys, 1),
+  };
+}
+
+function buildSolidScene(state, plot) {
+  const { THREE, group } = state;
+  const samples = (plot.samples || []).filter(
+    (sample) =>
+      Number.isFinite(sample.u) &&
+      Number.isFinite(sample.outer) &&
+      Number.isFinite(sample.inner),
+  );
+  if (samples.length < 2) {
+    group.add(new THREE.GridHelper(4.2, 10, 0x8fa1a8, 0xd7dee2));
+    addAxes(state, 2.6);
+    resetThreeCamera(state);
+    return;
+  }
+  if ((plot.preset || "").startsWith("shell_")) {
+    buildShellScene(state, plot, samples);
+    return;
+  }
+  const radialSegments = 36;
+  const uMin = plot.uMin ?? 0;
+  const uMax = plot.uMax ?? 1;
+  const uSpan = Math.max(1e-9, uMax - uMin);
+  const rMax = Math.max(1e-9, plot.radiusMax ?? 1);
+  const lengthScale = 3.4 / Math.max(uSpan, rMax * 2);
+  const radiusScale = lengthScale;
+  const solidMaterial = new THREE.MeshStandardMaterial({ color: 0x0b7a75, transparent: true, opacity: 0.72, roughness: 0.58, side: THREE.DoubleSide });
+  const capMaterial = new THREE.MeshStandardMaterial({ color: 0x70c7bd, transparent: true, opacity: 0.45, roughness: 0.62, side: THREE.DoubleSide });
+  const outerGeometry = buildTubeGeometry(THREE, samples, uMin, uSpan, lengthScale, radiusScale, radialSegments, "outer", plot.axis);
+  group.add(new THREE.Mesh(outerGeometry, solidMaterial));
+  addWireframe(THREE, group, outerGeometry, 0x0a5652, 0.2);
+  const innerMax = Math.max(...samples.map((sample) => Math.abs(sample.inner || 0)));
+  if (innerMax > 1e-8) {
+    const innerGeometry = buildTubeGeometry(THREE, samples, uMin, uSpan, lengthScale, radiusScale, radialSegments, "inner", plot.axis);
+    group.add(new THREE.Mesh(innerGeometry, new THREE.MeshStandardMaterial({ color: 0xd45b47, transparent: true, opacity: 0.36, roughness: 0.7, side: THREE.DoubleSide })));
+    addWireframe(THREE, group, innerGeometry, 0x8f3f32, 0.16);
+  }
+  group.add(new THREE.Mesh(buildWasherCapGeometry(THREE, samples[0], uMin, uSpan, lengthScale, radiusScale, radialSegments, plot.axis), capMaterial));
+  group.add(new THREE.Mesh(buildWasherCapGeometry(THREE, samples[samples.length - 1], uMin, uSpan, lengthScale, radiusScale, radialSegments, plot.axis), capMaterial));
+  group.add(new THREE.GridHelper(4.2, 10, 0x8fa1a8, 0xd7dee2));
+  addAxes(state, 2.6);
+  resetThreeCamera(state);
+}
+
+function buildShellScene(state, plot, samples) {
+  const { THREE, group } = state;
+  const radialSegments = 36;
+  const rMax = Math.max(1e-9, plot.radiusMax ?? 1);
+  const scale = 1.78 / rMax;
+  const heights = samples.flatMap((sample) => [sample.outer, sample.inner]).filter(Number.isFinite);
+  const heightCenter = (Math.min(...heights) + Math.max(...heights)) / 2;
+  const material = new THREE.MeshStandardMaterial({ color: 0x0b7a75, transparent: true, opacity: 0.66, roughness: 0.6, side: THREE.DoubleSide });
+  const capMaterial = new THREE.MeshStandardMaterial({ color: 0x70c7bd, transparent: true, opacity: 0.38, roughness: 0.65, side: THREE.DoubleSide });
+  const outerSurface = buildShellSurfaceGeometry(THREE, samples, scale, radialSegments, "outer", plot.axis, heightCenter);
+  const innerSurface = buildShellSurfaceGeometry(THREE, samples, scale, radialSegments, "inner", plot.axis, heightCenter);
+  group.add(new THREE.Mesh(outerSurface, material));
+  group.add(new THREE.Mesh(innerSurface, capMaterial));
+  addWireframe(THREE, group, outerSurface, 0x0a5652, 0.18);
+  const firstWall = buildShellWallGeometry(THREE, samples[0], scale, radialSegments, plot.axis, heightCenter);
+  const lastWall = buildShellWallGeometry(THREE, samples[samples.length - 1], scale, radialSegments, plot.axis, heightCenter);
+  if (firstWall) group.add(new THREE.Mesh(firstWall, capMaterial));
+  if (lastWall) group.add(new THREE.Mesh(lastWall, capMaterial));
+  group.add(new THREE.GridHelper(4.2, 10, 0x8fa1a8, 0xd7dee2));
+  addAxes(state, 2.6);
+  resetThreeCamera(state);
+}
+
+function addWireframe(THREE, group, geometry, color, opacity) {
+  const wire = new THREE.LineSegments(
+    new THREE.WireframeGeometry(geometry),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity }),
+  );
+  group.add(wire);
+}
+
+function solidPoint(axis, uValue, radius, angle) {
+  const cos = Math.cos(angle) * radius;
+  const sin = Math.sin(angle) * radius;
+  return axis === "y" ? [cos, uValue, sin] : [uValue, cos, sin];
+}
+
+function buildWasherCapGeometry(THREE, sample, uMin, uSpan, lengthScale, radiusScale, radialSegments, axis = "x") {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  const indices = [];
+  const uValue = (sample.u - uMin - uSpan / 2) * lengthScale;
+  const innerRadius = Math.min(Math.abs(sample.inner || 0), Math.abs(sample.outer || 0)) * radiusScale;
+  const outerRadius = Math.max(Math.abs(sample.inner || 0), Math.abs(sample.outer || 0)) * radiusScale;
+  for (let j = 0; j <= radialSegments; j += 1) {
+    const angle = (Math.PI * 2 * j) / radialSegments;
+    vertices.push(...solidPoint(axis, uValue, innerRadius, angle));
+    vertices.push(...solidPoint(axis, uValue, outerRadius, angle));
+  }
+  for (let j = 0; j < radialSegments; j += 1) {
+    const a = j * 2;
+    const b = a + 1;
+    const c = a + 2;
+    const d = a + 3;
+    indices.push(a, b, d, a, d, c);
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function shellPoint(axis, sample, key, scale, heightCenter, angle) {
+  const radius = Math.abs(sample.u || 0) * scale;
+  const height = ((sample[key] || 0) - heightCenter) * scale;
+  const cos = Math.cos(angle) * radius;
+  const sin = Math.sin(angle) * radius;
+  return axis === "x" ? [height, cos, sin] : [cos, height, sin];
+}
+
+function buildShellSurfaceGeometry(THREE, samples, scale, radialSegments, key, axis, heightCenter) {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  const indices = [];
+  for (const sample of samples) {
+    for (let j = 0; j <= radialSegments; j += 1) {
+      const angle = (Math.PI * 2 * j) / radialSegments;
+      vertices.push(...shellPoint(axis, sample, key, scale, heightCenter, angle));
+    }
+  }
+  const cols = radialSegments + 1;
+  for (let i = 0; i < samples.length - 1; i += 1) {
+    for (let j = 0; j < radialSegments; j += 1) {
+      const a = i * cols + j;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = a + cols;
+      indices.push(a, b, c, a, c, d);
+    }
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function buildShellWallGeometry(THREE, sample, scale, radialSegments, axis, heightCenter) {
+  const radius = Math.abs(sample.u || 0) * scale;
+  if (radius < 1e-6) return null;
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  const indices = [];
+  for (let j = 0; j <= radialSegments; j += 1) {
+    const angle = (Math.PI * 2 * j) / radialSegments;
+    vertices.push(...shellPoint(axis, sample, "inner", scale, heightCenter, angle));
+    vertices.push(...shellPoint(axis, sample, "outer", scale, heightCenter, angle));
+  }
+  for (let j = 0; j < radialSegments; j += 1) {
+    const a = j * 2;
+    const b = a + 1;
+    const c = a + 2;
+    const d = a + 3;
+    indices.push(a, b, d, a, d, c);
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function buildTubeGeometry(THREE, samples, uMin, uSpan, lengthScale, radiusScale, radialSegments, key, axis = "x") {
+  const geometry = new THREE.BufferGeometry();
+  const vertices = [];
+  const indices = [];
+  for (const sample of samples) {
+    const uValue = (sample.u - uMin - uSpan / 2) * lengthScale;
+    const radius = Math.abs(sample[key] || 0) * radiusScale;
+    for (let j = 0; j <= radialSegments; j += 1) {
+      const angle = (Math.PI * 2 * j) / radialSegments;
+      if (axis === "y") vertices.push(Math.cos(angle) * radius, uValue, Math.sin(angle) * radius);
+      else vertices.push(uValue, Math.cos(angle) * radius, Math.sin(angle) * radius);
+    }
+  }
+  const cols = radialSegments + 1;
+  for (let i = 0; i < samples.length - 1; i += 1) {
+    for (let j = 0; j < radialSegments; j += 1) {
+      const a = i * cols + j;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = a + cols;
+      indices.push(a, c, b, a, d, c);
+    }
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function addAxes(state, size) {
+  const { THREE, group } = state;
+  group.add(new THREE.AxesHelper(size));
+}
+
+function resetThreeCamera(state = threeState) {
+  if (!state) return;
+  state.camera.position.set(4.2, 4.0, 3.0);
+  state.controls.target.set(0, 0, 0);
+  state.controls.update();
 }
 
 function drawPolarPlot(ctx, width, height, plot) {
@@ -1435,6 +1945,11 @@ function drawSurfaceMesh(ctx, plot, frame) {
 }
 
 function surfaceColor(value, zMin, zMax, alpha) {
+  const rgb = surfaceRgb(value, zMin, zMax);
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+}
+
+function surfaceRgb(value, zMin, zMax) {
   const t = Math.max(0, Math.min(1, (value - zMin) / Math.max(1e-12, zMax - zMin)));
   const low = [111, 91, 184];
   const mid = [11, 122, 117];
@@ -1442,8 +1957,7 @@ function surfaceColor(value, zMin, zMax, alpha) {
   const left = t < 0.5 ? low : mid;
   const right = t < 0.5 ? mid : high;
   const local = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-  const rgb = left.map((channel, index) => Math.round(channel + (right[index] - channel) * local));
-  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+  return left.map((channel, index) => Math.round(channel + (right[index] - channel) * local));
 }
 
 function drawSurfaceAxes(ctx, plot, frame) {
@@ -1472,11 +1986,50 @@ function drawMiniPlot(canvas, plot) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (plot?.kind === "surface") {
     drawSurfacePlot(ctx, canvas.width, canvas.height, plot);
+  } else if (plot?.kind === "solid_revolution") {
+    drawSolidMiniPlot(ctx, canvas.width, canvas.height, plot);
   } else if (plot?.kind === "polar_area" || plot?.kind === "polar_surface") {
     drawPolarPlot(ctx, canvas.width, canvas.height, plot);
   } else {
     drawCurvePlot(ctx, canvas.width, canvas.height, plot);
   }
+}
+
+function drawSolidMiniPlot(ctx, width, height, plot) {
+  ctx.save();
+  ctx.fillStyle = "#fbfdfd";
+  ctx.fillRect(0, 0, width, height);
+  const samples = (plot.samples || []).filter((sample) => sample.outer !== null);
+  if (samples.length < 2) {
+    ctx.restore();
+    return;
+  }
+  const margin = 24;
+  const uMin = plot.uMin ?? 0;
+  const uMax = plot.uMax ?? 1;
+  const radius = Math.max(1e-9, plot.radiusMax ?? 1);
+  const xToPx = (uValue) => margin + ((uValue - uMin) / Math.max(1e-9, uMax - uMin)) * (width - margin * 2);
+  const rToPx = (rValue) => height / 2 - (rValue / radius) * (height * 0.34);
+  const rnToPx = (rValue) => height / 2 + (rValue / radius) * (height * 0.34);
+  ctx.strokeStyle = "#8fa1a8";
+  ctx.beginPath();
+  ctx.moveTo(margin, height / 2);
+  ctx.lineTo(width - margin, height / 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(11, 122, 117, 0.18)";
+  ctx.strokeStyle = "#0b7a75";
+  ctx.beginPath();
+  samples.forEach((sample, index) => {
+    const px = xToPx(sample.u);
+    const py = rToPx(Math.abs(sample.outer || 0));
+    if (index === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  });
+  [...samples].reverse().forEach((sample) => ctx.lineTo(xToPx(sample.u), rnToPx(Math.abs(sample.outer || 0))));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 function formatTick(value) {
@@ -1497,6 +2050,7 @@ function bindEvents() {
     elements.yLower,
     elements.yUpper,
     elements.innerExpression,
+    elements.solidInnerExpression,
     elements.rLower,
     elements.rUpper,
     elements.thetaLower,
@@ -1543,8 +2097,19 @@ function bindEvents() {
   });
   elements.askQuestion.addEventListener("click", askQuestion);
   elements.qaMode.addEventListener("change", updateQaBounds);
+  elements.solidPreset.addEventListener("change", () => setMode(currentMode, false));
+  elements.qaSolidPreset.addEventListener("change", updateQaBounds);
+  elements.qaSolidInnerExpression.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") askQuestion();
+  });
+  elements.reset3d.addEventListener("click", () => resetThreeCamera());
+  elements.toggleAutoRotate.addEventListener("click", () => {
+    threeAutoRotate = !threeAutoRotate;
+    elements.toggleAutoRotate.textContent = threeAutoRotate ? t("autoRotateOn", "自动旋转：开") : t("autoRotateOff", "自动旋转：关");
+  });
   elements.languageToggle.addEventListener("click", toggleLanguage);
   window.addEventListener("resize", () => {
+    if (threeState && !elements.threePlot.hidden) resizeThreeRenderer(threeState);
     if (lastPlot) drawPlot(lastPlot);
   });
 }
